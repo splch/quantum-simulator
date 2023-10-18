@@ -14,7 +14,7 @@ Welcome to the Quantum Simulator written in Go. This simulator aims to provide a
 1. **Install the library**
 
    ```shell
-   go get github.com/splch/quantum-simulator
+   go get github.com/splch/quantum_simulator
    ```
    
 2. **Download dependencies**
