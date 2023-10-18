@@ -4,7 +4,7 @@ build:
 	go build -o bin/quantum_simulator cmd/cli/cli.go
 
 test:
-	go test ./pkg/quantum/...
+	go test ./test/...
 
 clean:
 	rm -rf bin/
