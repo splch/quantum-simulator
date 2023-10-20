@@ -29,9 +29,9 @@ func main() {
 	for state, count := range results {
 		// Expected result:
 		// 000: 46
-		// 001: 4
+		// 001: 46
 		// 100: 4
-		// 101: 46
+		// 101: 4
 		fmt.Printf("%s: %d\n", state, count)
 	}
 }

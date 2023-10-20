@@ -11,40 +11,24 @@ A simple quantum simulator implemented in Go.
 
 - Go 1.21 or higher
 
-## Install
+## Usage
 
-To install the library:
+To `get`:
 
 ```shell
 go get github.com/splch/quantum_simulator
 ```
 
-## Setup
-
-To download dependencies:
+To `run`:
 
 ```shell
-go mod tidy
+go run main.go
 ```
 
-## Usage
-
-To `build` the project:
+To `test`:
 
 ```shell
-make build
-```
-
-To `test` the library:
-
-```shell
-make test
-```
-
-To `run` the simulator:
-
-```shell
-make run
+go test ./pkg/quantum_simulator/... -v
 ```
 
 ## Contributing
