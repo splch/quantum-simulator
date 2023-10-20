@@ -1,3 +1,3 @@
-module github.com/splch/quantum_simulator
+module github.com/splch/quantumsimulator
 
 go 1.21

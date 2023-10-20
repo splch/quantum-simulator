@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/splch/quantum_simulator/pkg/quantum_simulator"
+	"github.com/splch/quantumsimulator/pkg/quantumsimulator"
 )
 
 func main() {
 	// Initialize a quantum circuit
-	circuit := quantum_simulator.NewCircuit(3)
+	circuit := quantumsimulator.NewCircuit(3)
 
 	// Apply a Hadamard gate
 	circuit.H(0)
@@ -29,9 +29,9 @@ func main() {
 	for state, count := range results {
 		// Expected result:
 		// 000: 46
-		// 001: 4
+		// 001: 46
 		// 100: 4
-		// 101: 46
+		// 101: 4
 		fmt.Printf("%s: %d\n", state, count)
 	}
 }
