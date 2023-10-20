@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/splch/quantum_simulator/pkg/quantum_simulator"
+	"github.com/splch/quantumsimulator/pkg/quantumsimulator"
 )
 
 func main() {
 	// Initialize a quantum circuit
-	circuit := quantum_simulator.NewCircuit(3)
+	circuit := quantumsimulator.NewCircuit(3)
 
 	// Apply a Hadamard gate
 	circuit.H(0)

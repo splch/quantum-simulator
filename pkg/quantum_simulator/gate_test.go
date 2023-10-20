@@ -1,4 +1,4 @@
-package quantum_simulator
+package quantumsimulator
 
 import (
 	"testing"

@@ -1,7 +1,7 @@
 # Quantum Simulator in Go
 
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/splch/quantum_simulator)](https://pkg.go.dev/github.com/splch/quantum_simulator)
-[![Go Report Card](https://goreportcard.com/badge/github.com/splch/quantum_simulator?style=flat-square)](https://goreportcard.com/report/github.com/splch/quantum_simulator)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/splch/quantumsimulator)](https://pkg.go.dev/github.com/splch/quantumsimulator)
+[![Go Report Card](https://goreportcard.com/badge/github.com/splch/quantumsimulator?style=flat-square)](https://goreportcard.com/report/github.com/splch/quantumsimulator)
 
 ## Introduction
 
@@ -16,19 +16,19 @@ A simple quantum simulator implemented in Go.
 To `get`:
 
 ```shell
-go get github.com/splch/quantum_simulator
+go get github.com/splch/quantumsimulator
 ```
 
 To `run`:
 
 ```shell
-go run main.go
+go run main.go -qubits 3 -shots 100 -ops "H[0] T[1] CX[0,1] U(0.3,0.4,0.5)[2]"
 ```
 
 To `test`:
 
 ```shell
-go test ./pkg/quantum_simulator/... -v
+go test ./pkg/quantumsimulator/... -v
 ```
 
 ## Contributing

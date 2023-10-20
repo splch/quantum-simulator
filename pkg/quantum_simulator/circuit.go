@@ -1,5 +1,5 @@
 // circuit.go
-package quantum_simulator
+package quantumsimulator
 
 import (
 	"fmt"
