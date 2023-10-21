@@ -22,7 +22,7 @@ go get github.com/splch/quantumsimulator
 To `run`:
 
 ```shell
-go run main.go -qubits 3 -shots 100 -ops "H[0] T[1] CX[0,1] U(0.3,0.4,0.5)[2]"
+go run main.go -qubits 3 -shots 10 -ops "H:0,CX:0:1,U:2:0.2:0.3:0.4"
 ```
 
 To `test`:

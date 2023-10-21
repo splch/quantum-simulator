@@ -59,7 +59,7 @@ func (circuit *Circuit) X(target int) {
 
 // CX applies a Controlled-X gate
 func (circuit *Circuit) CX(control, target int) {
-	circuit.ApplyGate(X.Control(), target)
+	circuit.ApplyGate(X.Control(control, target, circuit.nQubits), target)
 }
 
 // U applies a generic unitary gate

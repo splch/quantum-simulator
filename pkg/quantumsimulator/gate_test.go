@@ -16,7 +16,7 @@ func TestNewGate(t *testing.T) {
 
 func TestControlGate(t *testing.T) {
 	xGate := X
-	cxGate := xGate.Control()
+	cxGate := xGate.Control(0, 1, 2)
 
 	expectedMatrix := [][]complex128{
 		{1, 0, 0, 0},

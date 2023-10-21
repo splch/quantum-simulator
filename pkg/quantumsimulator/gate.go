@@ -34,7 +34,7 @@ var (
 )
 
 // Control applies a control gate
-func (gate *Gate) Control() Gate {
+func (gate *Gate) Control(control, target, nQubits int) Gate {
 	controlledMatrix := [][]complex128{
 		{complex(1, 0), complex(0, 0), complex(0, 0), complex(0, 0)},
 		{complex(0, 0), complex(1, 0), complex(0, 0), complex(0, 0)},
