@@ -22,7 +22,7 @@ func main() {
 	// Apply a Generic gate
 	circuit.U(2, 0.3, 0.4, 0.5)
 
-	// Run the circuit 100 times
+	// Run the circuit
 	results := circuit.Run(100)
 
 	// Print measurements
