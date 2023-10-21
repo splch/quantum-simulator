@@ -1,4 +1,3 @@
-// circuit.go
 package quantumsimulator
 
 import (
