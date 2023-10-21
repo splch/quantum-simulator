@@ -17,7 +17,7 @@ func main() {
 	circuit.T(1)
 
 	// Apply a Controlled-Not gate
-	circuit.CX(0, 1)
+	circuit.CX(0, 2)
 
 	// Apply a Generic gate
 	circuit.U(2, 0.3, 0.4, 0.5)
@@ -29,9 +29,9 @@ func main() {
 	for state, count := range results {
 		// Expected result:
 		// 000: 46
-		// 001: 46
+		// 001: 4
 		// 100: 4
-		// 101: 4
+		// 101: 46
 		fmt.Printf("%s: %d\n", state, count)
 	}
 }

@@ -53,6 +53,11 @@ func (circuit *Circuit) T(target int) {
 	circuit.ApplyGate(T, target)
 }
 
+// X applies a X gate
+func (circuit *Circuit) X(target int) {
+	circuit.ApplyGate(X, target)
+}
+
 // CX applies a Controlled-X gate
 func (circuit *Circuit) CX(control, target int) {
 	circuit.ApplyGate(X.Control(), target)
