@@ -1,4 +1,3 @@
-// circuit.go
 package quantumsimulator
 
 import (
@@ -26,21 +25,28 @@ func NewCircuit(nQubits int) Circuit {
 }
 
 // ApplyGate applies a gate to the circuit
-func (circuit *Circuit) ApplyGate(gate Gate, target int) {
-	newState := make([]complex128, len(circuit.State))
+func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) {
+	n := circuit.nQubits
 
-	for i := 0; i < len(circuit.State); i++ {
-		for j := 0; j < len(gate.Matrix); j++ {
-			// Find the index to which the amplitude should be added in the new state
-			newIdx := i ^ (j << target)
-
-			// Calculate the new amplitude and add it to the new state
-			newState[newIdx] += gate.Matrix[j][i&(1<<target)>>target] * circuit.State[i]
+	// Building the operator
+	var operator [][]complex128
+	if len(control) > 0 { // If it is a controlled gate
+		controlQubit := control[0]
+		CGate := gate.Control(controlQubit, target, n)
+		operator = CGate.Matrix
+	} else { // If it is not a controlled gate
+		operator = IdentityMatrix(1)
+		for qubit := 0; qubit < n; qubit++ {
+			if qubit == target {
+				operator = kronecker(operator, gate.Matrix)
+			} else {
+				operator = kronecker(operator, IdentityMatrix(2))
+			}
 		}
 	}
 
-	// Update the circuit's state
-	circuit.State = newState
+	// Applying the operator to the circuit state
+	circuit.State = Multiply(operator, circuit.State)
 }
 
 // H applies a Hadamard gate
@@ -53,9 +59,14 @@ func (circuit *Circuit) T(target int) {
 	circuit.ApplyGate(T, target)
 }
 
+// X applies a X gate
+func (circuit *Circuit) X(target int) {
+	circuit.ApplyGate(X, target)
+}
+
 // CX applies a Controlled-X gate
 func (circuit *Circuit) CX(control, target int) {
-	circuit.ApplyGate(X.Control(), target)
+	circuit.ApplyGate(X, target, control)
 }
 
 // U applies a generic unitary gate
@@ -80,8 +91,8 @@ func (circuit *Circuit) Run(shots int) map[string]int {
 	results := make(map[string]int)
 
 	for i := 0; i < shots; i++ {
-		state := circuit.measure()
-		results[state]++
+		measurement := circuit.measure()
+		results[measurement]++
 	}
 
 	return results
@@ -89,12 +100,21 @@ func (circuit *Circuit) Run(shots int) map[string]int {
 
 // measure performs a measurement on the circuit
 func (circuit *Circuit) measure() string {
-	r := rand.Float64()
+	probabilities := make([]float64, len(circuit.State))
 
-	for i, prob := range circuit.State {
-		r -= cmplx.Abs(prob) * cmplx.Abs(prob)
+	for i, amplitude := range circuit.State {
+		probabilities[i] = cmplx.Abs(amplitude) * cmplx.Abs(amplitude)
+	}
 
-		if r <= 0 {
+	// Generate a random number between 0 and 1
+	randomNumber := rand.Float64()
+
+	// Find which basis state is selected
+	sum := 0.0
+	for i, probability := range probabilities {
+		sum += probability
+		if randomNumber < sum {
+			// Convert the index of the basis state to a binary string
 			return fmt.Sprintf("%0*b", circuit.nQubits, i)
 		}
 	}
