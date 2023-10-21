@@ -28,7 +28,6 @@ func main() {
 		fmt.Println("Example:")
 		fmt.Println("  go run main.go -qubits 3 -shots 10 -ops \"H:0,CX:0:1,U:2:0.2:0.3:0.4\"")
 	}
-
 	flag.Parse()
 
 	// Input validation
@@ -82,7 +81,7 @@ func main() {
 func parseParam(param string) int {
 	res, err := strconv.Atoi(param)
 	if err != nil {
-		panic(fmt.Sprintf("Error parsing parameter: %s\n", param))
+		panic(fmt.Sprintf("error: failed parsing parameter: %s\n", param))
 	}
 	return res
 }
@@ -90,7 +89,7 @@ func parseParam(param string) int {
 func parseFloat(param string) float64 {
 	res, err := strconv.ParseFloat(param, 64)
 	if err != nil {
-		panic(fmt.Sprintf("Error parsing float parameter: %s\n", param))
+		panic(fmt.Sprintf("error: failed parsing float parameter: %s\n", param))
 	}
 	return res
 }
