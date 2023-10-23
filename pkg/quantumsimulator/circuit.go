@@ -156,11 +156,14 @@ func (circuit *Circuit) PrintState() {
 	probabilities := calculateProbabilities(circuit.State)
 
 	for i, probability := range probabilities {
-		// Convert the state index to binary representation
-		state := fmt.Sprintf("|%0*b⟩", circuit.nQubits, i)
+		if probability != 0.0 {
+			// Convert the state index to binary representation
+			state := fmt.Sprintf("|%0*b⟩", circuit.nQubits, i)
 
-		// Print the state and its probability
-		fmt.Printf("%s: %f\n", state, probability)
+			// Print the state and its probability
+			fmt.Printf("%s: %f\n", state, probability)
+
+		}
 	}
 }
 
