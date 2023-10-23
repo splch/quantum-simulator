@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/splch/quantumsimulator/pkg/quantumsimulator"
 )
 
 func main() {
 	// Initialize a quantum circuit
-	circuit := quantumsimulator.NewCircuit(3)
+	circuit, err := quantumsimulator.NewCircuit(3)
+	if err != nil {
+		log.Fatalf("Error initializing circuit: %v", err)
+	}
 
 	// Apply a Hadamard gate
 	circuit.H(2)
@@ -23,7 +27,10 @@ func main() {
 	circuit.U(0, 0.3, 0.4, 0.5)
 
 	// Run the circuit
-	results := circuit.Run(100)
+	results, err := circuit.Run(100)
+	if err != nil {
+		log.Fatalf("Error running circuit: %v", err)
+	}
 
 	// Print measurements
 	for state, count := range results {

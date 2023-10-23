@@ -17,8 +17,8 @@ func NewGate(matrix [][]complex128) Gate {
 	return Gate{Matrix: matrix}
 }
 
-// NewUGate creates and returns a UGate instance defined by the parameters theta, phi, and lambda.
-func NewUGate(theta, phi, lambda float64) Gate {
+// U creates and returns a U Gate instance defined by the parameters theta, phi, and lambda.
+func U(theta, phi, lambda float64) Gate {
 	return NewGate([][]complex128{
 		{
 			complex(math.Cos(theta/2), 0),
@@ -87,18 +87,13 @@ func Multiply(matrix [][]complex128, vector []complex128) []complex128 {
 }
 
 // IdentityMatrix returns an identity matrix of size n x n.
+// IdentityMatrix creates and returns an identity matrix of size n x n.
 func IdentityMatrix(n int) [][]complex128 {
 	identity := make([][]complex128, n)
 
 	for i := range identity {
 		identity[i] = make([]complex128, n)
-		for j := range identity[i] {
-			if i == j {
-				identity[i][j] = 1
-			} else {
-				identity[i][j] = 0
-			}
-		}
+		identity[i][i] = 1 // Simplified the assignment of the diagonal elements
 	}
 
 	return identity
