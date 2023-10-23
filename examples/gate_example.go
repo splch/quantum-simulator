@@ -15,16 +15,16 @@ func main() {
 	}
 
 	// Apply a Hadamard gate
-	circuit.H(2)
+	circuit.H(0)
 
 	// Apply a T gate
 	circuit.T(1)
 
 	// Apply a Controlled-Not gate
-	circuit.CX(2, 0)
+	circuit.CX(0, 2)
 
 	// Apply a Generic gate
-	circuit.U(0, 0.3, 0.4, 0.5)
+	circuit.U(2, 0.3, 0.4, 0.5)
 
 	// Run the circuit
 	results, err := circuit.Run(100)
