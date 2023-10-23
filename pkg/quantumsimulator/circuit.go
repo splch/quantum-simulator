@@ -151,6 +151,19 @@ func (circuit *Circuit) measure() string {
 	return ""
 }
 
+// PrintState prints the current quantum state and the probability of each state.
+func (circuit *Circuit) PrintState() {
+	probabilities := calculateProbabilities(circuit.State)
+
+	for i, probability := range probabilities {
+		// Convert the state index to binary representation
+		state := fmt.Sprintf("|%0*b⟩", circuit.nQubits, i)
+
+		// Print the state and its probability
+		fmt.Printf("%s: %f\n", state, probability)
+	}
+}
+
 // calculateProbabilities takes a state vector and returns the corresponding probabilities.
 func calculateProbabilities(state []complex128) []float64 {
 	probabilities := make([]float64, len(state))
