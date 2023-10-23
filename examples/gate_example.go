@@ -11,16 +11,16 @@ func main() {
 	circuit := quantumsimulator.NewCircuit(3)
 
 	// Apply a Hadamard gate
-	circuit.H(0)
+	circuit.H(2)
 
 	// Apply a T gate
 	circuit.T(1)
 
 	// Apply a Controlled-Not gate
-	circuit.CX(0, 2)
+	circuit.CX(2, 0)
 
 	// Apply a Generic gate
-	circuit.U(2, 0.3, 0.4, 0.5)
+	circuit.U(0, 0.3, 0.4, 0.5)
 
 	// Run the circuit
 	results := circuit.Run(100)
