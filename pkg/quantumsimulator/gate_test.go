@@ -41,7 +41,7 @@ func TestPredefinedGates(t *testing.T) {
 	}
 }
 
-func TestControlGate(t *testing.T) {
+func TestCXGate(t *testing.T) {
 	// Define control and target qubits
 	control := 0
 	target := 1
@@ -67,6 +67,55 @@ func TestControlGate(t *testing.T) {
 		}
 	}
 }
+
+// func TestCUGate(t *testing.T) {
+// 	// Define control and target qubits
+// 	control := 0
+// 	target := 1
+// 	nQubits := 2
+
+// 	// Creating a controlled-U gate using the Control function
+// 	U := U(0.1, 0.2, 0.3)
+// 	UGate := U.Control(control, target, nQubits)
+
+// 	// Define the expected matrix of the controlled-X gate
+// 	expectedU := [][]complex128{
+// 		{1, 0, 0, 0},
+// 		{0, 1, 0, 0},
+// 		{0, 0, 0, 0},
+// 		{0, 0, 0, 0},
+// 	}
+
+// 	// Check if the generated matrix matches the expected matrix
+// 	for i := 0; i < (1 << nQubits); i++ {
+// 		for j := 0; j < (1 << nQubits); j++ {
+// 			if UGate.Matrix[i][j] != expectedU[i][j] {
+// 				t.Errorf("Control function failed. Expected %v, but got %v at position (%d, %d)", expectedU[i][j], UGate.Matrix[i][j], i, j)
+// 			}
+// 		}
+// 	}
+// }
+
+// func TestInverseGate(t *testing.T) {
+// 	// Creating a U inverse gate using the Inverse function
+// 	U := U(0.1, 0.2, 0.3)
+// 	UinvGate := U.Inverse()
+
+// 	// Define the expected matrix of the U inverse gate
+// 	expectedUinvGate := [][]complex128{
+// 		{1, 0},
+// 		{0, 1},
+// 	}
+
+// 	// Check if the generated matrix matches the expected matrix
+// 	for i := 0; i < 2; i++ {
+// 		for j := 0; j < 2; j++ {
+// 			if UinvGate.Matrix[i][j] != expectedUinvGate[i][j] {
+// 				t.Errorf("Inverse function failed. Expected %v, but got %v at position (%d, %d)", expectedUinvGate[i][j], UinvGate.Matrix[i][j], i, j)
+// 			}
+// 		}
+// 	}
+// }
 
 func TestMultiply(t *testing.T) {
 	matrix := [][]complex128{{1, 0}, {0, 1}}

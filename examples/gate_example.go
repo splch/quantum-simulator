@@ -23,8 +23,8 @@ func main() {
 	// Apply a Controlled-Not gate
 	circuit.CX(0, 2)
 
-	// Apply a Generic gate
-	circuit.U(2, 0.3, 0.4, 0.5)
+	// Apply a Controlled-U Inverse gate
+	circuit.CU(2, 0, 0.3, 0.4, 0.5, true)
 
 	// Run the circuit
 	results, err := circuit.Run(100)
@@ -32,13 +32,15 @@ func main() {
 		log.Fatalf("Error running circuit: %v", err)
 	}
 
+	// Print true probabilities
+	circuit.PrintState()
+
 	// Print measurements
 	for state, count := range results {
 		// Expected result:
-		// 000: 46
-		// 001: 4
-		// 100: 4
-		// 101: 46
+		// 000: 50
+		// 001: 1
+		// 101: 49
 		fmt.Printf("%s: %d\n", state, count)
 	}
 }

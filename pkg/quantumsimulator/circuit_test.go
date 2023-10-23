@@ -60,9 +60,9 @@ func TestCircuitGates(t *testing.T) {
 func TestControlledGates(t *testing.T) {
 	circuit, _ := NewCircuit(2)
 
+	circuit.H(0)
 	circuit.CX(0, 1)
-
-	// Additional logic to check the state can be added based on expected outcomes.
+	circuit.CU(1, 0, 0.1, 0.2, 0.3, true)
 }
 
 func TestRun(t *testing.T) {

@@ -31,6 +31,10 @@ To `test`:
 go test ./pkg/quantumsimulator/... -v
 ```
 
+To see an example:
+
+[gate_example.go](examples/gate_example.go)
+
 ## Contributing
 
 Feel free to contribute to this project. Open an issue or a pull request.

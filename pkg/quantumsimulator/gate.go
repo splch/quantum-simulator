@@ -1,5 +1,3 @@
-// Package quantumsimulator provides structures and functions
-// for simulating quantum gates and circuits.
 package quantumsimulator
 
 import (
@@ -56,44 +54,58 @@ func (gate *Gate) Control(control, target, nQubits int) Gate {
 	size := 1 << nQubits
 	newGate := IdentityMatrix(size)
 
-	controlBit := 1 << (nQubits - 1 - control)
-	targetBit := 1 << (nQubits - 1 - target)
+	controlMask := 1 << (nQubits - 1 - control)
 
-	for basis := 0; basis < size; basis++ {
-		if basis&controlBit == controlBit && basis&targetBit == 0 {
-			targetState := basis ^ targetBit
+	for basis := controlMask; basis < size; basis += controlMask << 1 {
+		targetBit := (basis >> (nQubits - 1 - target)) & 1
+		targetState := basis ^ (1 << (nQubits - 1 - target))
 
-			newGate[basis][basis] = 0
-			newGate[basis][targetState] = 1
-			newGate[targetState][basis] = 1
-			newGate[targetState][targetState] = 0
-		}
+		newGate[basis][basis] = gate.Matrix[targetBit][targetBit]
+		newGate[basis][targetState] = gate.Matrix[targetBit][1-targetBit]
+		newGate[targetState][basis] = gate.Matrix[1-targetBit][targetBit]
+		newGate[targetState][targetState] = gate.Matrix[1-targetBit][1-targetBit]
 	}
 
 	return NewGate(newGate)
 }
 
-// Multiply multiplies a given matrix with a vector and returns the resulting vector.
+// Inverse returns the inverse (Hermitian transpose) of the gate.
+func (gate *Gate) Inverse() Gate {
+	rows := len(gate.Matrix)
+	cols := len(gate.Matrix[0])
+	inverseMatrix := make([][]complex128, cols) // Note that rows and cols are swapped.
+
+	for i := range inverseMatrix {
+		inverseMatrix[i] = make([]complex128, rows)
+		for j := range inverseMatrix[i] {
+			// Taking the complex conjugate and transposing the matrix.
+			inverseMatrix[i][j] = cmplx.Conj(gate.Matrix[j][i])
+		}
+	}
+
+	return NewGate(inverseMatrix)
+}
+
+// Multiply multiplies a matrix by a vector and returns the resulting vector.
 func Multiply(matrix [][]complex128, vector []complex128) []complex128 {
 	result := make([]complex128, len(matrix))
-	for i := 0; i < len(matrix); i++ {
-		row := matrix[i][:len(matrix[i]):len(matrix[i])]
-		for j := 0; j < len(row); j++ {
-			result[i] += row[j] * vector[j]
+
+	for i, row := range matrix {
+		for j, value := range row {
+			result[i] += value * vector[j]
 		}
 	}
 
 	return result
 }
 
-// IdentityMatrix returns an identity matrix of size n x n.
 // IdentityMatrix creates and returns an identity matrix of size n x n.
 func IdentityMatrix(n int) [][]complex128 {
 	identity := make([][]complex128, n)
 
 	for i := range identity {
 		identity[i] = make([]complex128, n)
-		identity[i][i] = 1 // Simplified the assignment of the diagonal elements
+		identity[i][i] = 1
 	}
 
 	return identity
@@ -112,9 +124,18 @@ func kronecker(m1, m2 [][]complex128) [][]complex128 {
 
 	for i := 0; i < rowsM1; i++ {
 		for j := 0; j < colsM1; j++ {
+			// Extract common multiplicative factor
+			m1Factor := m1[i][j]
+
+			// Compute the base index for the row and column in the resulting matrix
+			baseRow, baseCol := i*rowsM2, j*colsM2
+
 			for k := 0; k < rowsM2; k++ {
+				rowIdx := baseRow + k
+
 				for l := 0; l < colsM2; l++ {
-					p[i*rowsM2+k][j*colsM2+l] = m1[i][j] * m2[k][l]
+					colIdx := baseCol + l
+					p[rowIdx][colIdx] = m1Factor * m2[k][l]
 				}
 			}
 		}
