@@ -62,29 +62,59 @@ func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) error {
 	return nil                                        // No error occurred.
 }
 
-// H applies a Hadamard gate to a target qubit in the circuit.
-func (circuit *Circuit) H(target int) {
-	circuit.ApplyGate(H, target)
+// H applies a Hadamard gate to a target qubit in the circuit, or its inverse if inv is true.
+func (circuit *Circuit) H(target int, inv ...bool) {
+	gate := H
+	if len(inv) > 0 && inv[0] {
+		gate = H.Inverse()
+	}
+	circuit.ApplyGate(gate, target)
 }
 
-// T applies a T gate (π/8 gate) to a target qubit in the circuit.
-func (circuit *Circuit) T(target int) {
-	circuit.ApplyGate(T, target)
+// T applies a T gate (π/8 gate) to a target qubit in the circuit, or its inverse if inv is true.
+func (circuit *Circuit) T(target int, inv ...bool) {
+	gate := T
+	if len(inv) > 0 && inv[0] {
+		gate = T.Inverse()
+	}
+	circuit.ApplyGate(gate, target)
 }
 
-// X applies a Pauli-X gate to a target qubit in the circuit.
-func (circuit *Circuit) X(target int) {
-	circuit.ApplyGate(X, target)
+// X applies a Pauli-X gate to a target qubit in the circuit, or its inverse if inv is true.
+func (circuit *Circuit) X(target int, inv ...bool) {
+	gate := X
+	if len(inv) > 0 && inv[0] {
+		gate = X.Inverse()
+	}
+	circuit.ApplyGate(gate, target)
 }
 
-// CX applies a controlled-X (CNOT) gate to target qubits in the circuit.
-func (circuit *Circuit) CX(control, target int) {
-	circuit.ApplyGate(X, target, control)
+// CX applies a controlled-X (CNOT) gate to target qubits in the circuit, or its inverse if inv is true.
+func (circuit *Circuit) CX(control, target int, inv ...bool) {
+	gate := X
+	if len(inv) > 0 && inv[0] {
+		gate = X.Inverse()
+	}
+	circuit.ApplyGate(gate, target, control)
 }
 
-// U applies a custom unitary gate defined by the parameters theta, phi, and lambda to a target qubit.
-func (circuit *Circuit) U(target int, theta, phi, lambda float64) {
-	circuit.ApplyGate(U(theta, phi, lambda), target)
+// U applies a custom unitary gate defined by the parameters theta, phi, and lambda to a target qubit,
+// or its inverse if inv is true.
+func (circuit *Circuit) U(target int, theta, phi, lambda float64, inv ...bool) {
+	gate := U(theta, phi, lambda)
+	if len(inv) > 0 && inv[0] {
+		gate = gate.Inverse()
+	}
+	circuit.ApplyGate(gate, target)
+}
+
+// CU applies a controlled-U gate to target qubits in the circuit, or its inverse if inv is true.
+func (circuit *Circuit) CU(control, target int, theta, phi, lambda float64, inv ...bool) {
+	gate := U(theta, phi, lambda)
+	if len(inv) > 0 && inv[0] {
+		gate = gate.Inverse()
+	}
+	circuit.ApplyGate(gate, target, control)
 }
 
 // Run simulates the measurement of the quantum circuit multiple times.

@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// Run the circuit
-	results, err := circuit.Run(100)
+	results, err := circuit.Run(shots)
 	if err != nil {
 		log.Fatalf("Error running circuit: %v", err)
 	}
