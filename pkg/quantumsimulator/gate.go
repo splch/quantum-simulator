@@ -105,7 +105,7 @@ func IdentityMatrix(n int) [][]complex128 {
 
 	for i := range identity {
 		identity[i] = make([]complex128, n)
-		identity[i][i] = 1 // Simplified the assignment of the diagonal elements
+		identity[i][i] = 1
 	}
 
 	return identity
