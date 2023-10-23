@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -30,14 +31,11 @@ func main() {
 	}
 	flag.Parse()
 
-	// Input validation
-	if qubits <= 0 || shots <= 0 || ops == "" {
-		fmt.Println("error: ensure qubits > 0, shots > 0, and ops != \"\"")
-		return
-	}
-
 	// Initialize a quantum circuit
-	circuit := quantumsimulator.NewCircuit(qubits)
+	circuit, err := quantumsimulator.NewCircuit(qubits)
+	if err != nil {
+		log.Fatalf("Error initializing circuit: %v", err)
+	}
 
 	// Splitting operations and applying them to the circuit
 	operations := strings.Split(ops, ",")
@@ -70,7 +68,10 @@ func main() {
 	}
 
 	// Run the circuit
-	results := circuit.Run(shots)
+	results, err := circuit.Run(100)
+	if err != nil {
+		log.Fatalf("Error running circuit: %v", err)
+	}
 
 	// Print measurements
 	for state, count := range results {

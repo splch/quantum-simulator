@@ -1,107 +1,106 @@
+// Package quantumsimulator provides structures and functions
+// for simulating quantum gates and circuits.
 package quantumsimulator
 
 import (
-	"fmt"
 	"math"
 	"math/cmplx"
-	"strconv"
 )
 
-// Gate represents a quantum gate with a matrix representation
+// Gate struct represents a quantum gate with its matrix representation.
 type Gate struct {
-	Matrix [][]complex128
+	Matrix [][]complex128 // Matrix representation of the quantum gate.
 }
 
-// NewGate creates a new Gate
+// NewGate creates and returns a Gate instance with the provided matrix.
 func NewGate(matrix [][]complex128) Gate {
 	return Gate{Matrix: matrix}
 }
 
-// Gates definitions
+// U creates and returns a U Gate instance defined by the parameters theta, phi, and lambda.
+func U(theta, phi, lambda float64) Gate {
+	return NewGate([][]complex128{
+		{
+			complex(math.Cos(theta/2), 0),
+			complex(-math.Sin(theta/2), 0) * cmplx.Exp(complex(0, lambda)),
+		},
+		{
+			cmplx.Exp(complex(0, phi)) * complex(math.Sin(theta/2), 0),
+			cmplx.Exp(complex(0, phi+lambda)) * complex(math.Cos(theta/2), 0),
+		},
+	})
+}
+
+// Predefined quantum gates.
 var (
-	H = NewGate([][]complex128{
+	H = NewGate([][]complex128{ // Hadamard gate.
 		{complex(1/math.Sqrt(2), 0), complex(1/math.Sqrt(2), 0)},
 		{complex(1/math.Sqrt(2), 0), complex(-1/math.Sqrt(2), 0)},
 	})
 
-	X = NewGate([][]complex128{
+	X = NewGate([][]complex128{ // Pauli-X gate.
 		{complex(0, 0), complex(1, 0)},
 		{complex(1, 0), complex(0, 0)},
 	})
 
-	T = NewGate([][]complex128{
+	T = NewGate([][]complex128{ // T gate (π/8 gate).
 		{complex(1, 0), complex(0, 0)},
 		{complex(0, 0), cmplx.Exp(complex(0, math.Pi/4))},
 	})
 )
 
-// Control applies a control gate
+// Control transforms the gate into its controlled version.
+// The method takes the indices of the control and target qubits,
+// and the total number of qubits in the circuit.
 func (gate *Gate) Control(control, target, nQubits int) Gate {
 	size := 1 << nQubits
-	newGate := make([][]complex128, size)
+	newGate := IdentityMatrix(size)
 
-	// Initializing the new gate as an identity matrix
-	for i := range newGate {
-		newGate[i] = make([]complex128, size)
-		newGate[i][i] = 1
-	}
+	controlBit := 1 << (nQubits - 1 - control)
+	targetBit := 1 << (nQubits - 1 - target)
 
-	// Iterating over each basis state
 	for basis := 0; basis < size; basis++ {
-		basisBinary := fmt.Sprintf("%0*b", nQubits, basis)
+		if basis&controlBit == controlBit && basis&targetBit == 0 {
+			targetState := basis ^ targetBit
 
-		if basisBinary[control] == '1' {
-			targetStateBinary := basisBinary[:target] +
-				strconv.Itoa(1-int(basisBinary[target]-'0')) +
-				basisBinary[target+1:]
-			targetState, _ := strconv.ParseInt(targetStateBinary, 2, 0)
-
-			// Applying the controlled operation
-			newGate[basis][basis] = gate.Matrix[basisBinary[target]-'0'][basisBinary[target]-'0']
-			newGate[basis][targetState] = gate.Matrix[basisBinary[target]-'0'][1-int(basisBinary[target]-'0')]
-			newGate[targetState][basis] = gate.Matrix[1-int(basisBinary[target]-'0')][basisBinary[target]-'0']
-			newGate[targetState][targetState] = gate.Matrix[1-int(basisBinary[target]-'0')][1-int(basisBinary[target]-'0')]
+			newGate[basis][basis] = 0
+			newGate[basis][targetState] = 1
+			newGate[targetState][basis] = 1
+			newGate[targetState][targetState] = 0
 		}
 	}
 
-	return NewGate(newGate) // Returning the new controlled gate
+	return NewGate(newGate)
 }
 
-// Multiply multiplies a matrix and vector
+// Multiply multiplies a given matrix with a vector and returns the resulting vector.
 func Multiply(matrix [][]complex128, vector []complex128) []complex128 {
-	rows := len(matrix)
-	if len(matrix[0]) != len(vector) {
-		return nil // Error: incompatible sizes for multiplication
+	result := make([]complex128, len(matrix))
+	for i := 0; i < len(matrix); i++ {
+		row := matrix[i][:len(matrix[i]):len(matrix[i])]
+		for j := 0; j < len(row); j++ {
+			result[i] += row[j] * vector[j]
+		}
 	}
 
-	result := make([]complex128, rows)
-	for i := 0; i < rows; i++ {
-		sum := complex128(0)
-		for j := range vector {
-			sum += matrix[i][j] * vector[j]
-		}
-		result[i] = sum
-	}
 	return result
 }
 
-// IdentityMatrix returns an identity matrix of size n
+// IdentityMatrix returns an identity matrix of size n x n.
+// IdentityMatrix creates and returns an identity matrix of size n x n.
 func IdentityMatrix(n int) [][]complex128 {
 	identity := make([][]complex128, n)
+
 	for i := range identity {
 		identity[i] = make([]complex128, n)
-		for j := range identity[i] {
-			if i == j {
-				identity[i][j] = 1 // Set diagonal elements to 1
-			} else {
-				identity[i][j] = 0 // Set off-diagonal elements to 0
-			}
-		}
+		identity[i][i] = 1 // Simplified the assignment of the diagonal elements
 	}
+
 	return identity
 }
 
-// kronecker returns the Kronecker product of two matrices
+// KroneckerProduct calculates the Kronecker product of the gate with the identity matrix,
+// placing the gate at the position defined by the target qubit.
 func kronecker(m1, m2 [][]complex128) [][]complex128 {
 	rowsM1, colsM1 := len(m1), len(m1[0])
 	rowsM2, colsM2 := len(m2), len(m2[0])

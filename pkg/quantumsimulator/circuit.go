@@ -1,40 +1,53 @@
+// Package quantumsimulator provides structures and functions
+// for simulating quantum gates and circuits.
 package quantumsimulator
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"math/cmplx"
 	"math/rand"
 )
 
-// Circuit represents a quantum circuit
+// Circuit struct represents a quantum circuit with multiple qubits.
+// State holds the current state vector of the quantum circuit,
+// and nQubits holds the total number of qubits in the circuit.
 type Circuit struct {
-	State   []complex128
-	nQubits int
+	State   []complex128 // The state vector of the circuit.
+	nQubits int          // Number of qubits in the circuit.
 }
 
-// NewCircuit creates a new quantum circuit
-func NewCircuit(nQubits int) Circuit {
-	state := make([]complex128, 1<<nQubits)
-	state[0] = 1
+// NewCircuit initializes a new Circuit with nQubits and returns it.
+// The function sets the initial state vector where only the first element is set to 1.
+func NewCircuit(nQubits int) (*Circuit, error) {
+	if nQubits <= 0 {
+		return nil, errors.New("number of qubits must be positive")
+	}
 
-	return Circuit{
+	state := make([]complex128, 1<<nQubits)
+	state[0] = 1 // Set the initial state to |0...0⟩.
+
+	return &Circuit{
 		State:   state,
 		nQubits: nQubits,
-	}
+	}, nil
 }
 
-// ApplyGate applies a gate to the circuit
-func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) {
+// ApplyGate applies a quantum gate to the circuit.
+// The method takes gate as the quantum gate to apply, target as the target qubit,
+// and optional control qubits for controlled gates.
+func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) error {
+	if target >= circuit.nQubits || target < 0 {
+		return errors.New("target qubit index out of range")
+	}
 	n := circuit.nQubits
-
-	// Building the operator
 	var operator [][]complex128
-	if len(control) > 0 { // If it is a controlled gate
+
+	if len(control) > 0 { // If a control qubit is provided.
 		controlQubit := control[0]
 		CGate := gate.Control(controlQubit, target, n)
 		operator = CGate.Matrix
-	} else { // If it is not a controlled gate
+	} else { // If no control qubit is provided.
 		operator = IdentityMatrix(1)
 		for qubit := 0; qubit < n; qubit++ {
 			if qubit == target {
@@ -45,79 +58,74 @@ func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) {
 		}
 	}
 
-	// Applying the operator to the circuit state
-	circuit.State = Multiply(operator, circuit.State)
+	circuit.State = Multiply(operator, circuit.State) // Applying the operator to the state vector.
+	return nil                                        // No error occurred.
 }
 
-// H applies a Hadamard gate
+// H applies a Hadamard gate to a target qubit in the circuit.
 func (circuit *Circuit) H(target int) {
 	circuit.ApplyGate(H, target)
 }
 
-// T applies a T gate
+// T applies a T gate (π/8 gate) to a target qubit in the circuit.
 func (circuit *Circuit) T(target int) {
 	circuit.ApplyGate(T, target)
 }
 
-// X applies a X gate
+// X applies a Pauli-X gate to a target qubit in the circuit.
 func (circuit *Circuit) X(target int) {
 	circuit.ApplyGate(X, target)
 }
 
-// CX applies a Controlled-X gate
+// CX applies a controlled-X (CNOT) gate to target qubits in the circuit.
 func (circuit *Circuit) CX(control, target int) {
 	circuit.ApplyGate(X, target, control)
 }
 
-// U applies a generic unitary gate
+// U applies a custom unitary gate defined by the parameters theta, phi, and lambda to a target qubit.
 func (circuit *Circuit) U(target int, theta, phi, lambda float64) {
-	matrix := [][]complex128{
-		{
-			complex(math.Cos(theta/2), 0),
-			complex(-math.Sin(theta/2), 0) * cmplx.Exp(complex(0, lambda)),
-		},
-		{
-			cmplx.Exp(complex(0, phi)) * complex(math.Sin(theta/2), 0),
-			cmplx.Exp(complex(0, phi+lambda)) * complex(math.Cos(theta/2), 0),
-		},
-	}
-
-	gate := NewGate(matrix)
-	circuit.ApplyGate(gate, target)
+	circuit.ApplyGate(U(theta, phi, lambda), target)
 }
 
-// Run executes the circuit and returns the measurement results
-func (circuit *Circuit) Run(shots int) map[string]int {
-	results := make(map[string]int)
+// Run simulates the measurement of the quantum circuit multiple times.
+// The method takes shots as the number of times the measurement is repeated,
+// and returns a map with the measurement outcomes and their occurrences.
+func (circuit *Circuit) Run(shots int) (map[string]int, error) {
+	if shots <= 0 {
+		return nil, errors.New("shots must be a positive integer")
+	}
 
+	results := make(map[string]int)
 	for i := 0; i < shots; i++ {
 		measurement := circuit.measure()
 		results[measurement]++
 	}
 
-	return results
+	return results, nil // No error occurred.
 }
 
-// measure performs a measurement on the circuit
+// measure simulates a single measurement of the quantum circuit and returns the binary string of the measured state.
 func (circuit *Circuit) measure() string {
-	probabilities := make([]float64, len(circuit.State))
+	probabilities := calculateProbabilities(circuit.State) // Calculate the probabilities from the state amplitudes.
 
-	for i, amplitude := range circuit.State {
-		probabilities[i] = cmplx.Abs(amplitude) * cmplx.Abs(amplitude)
-	}
-
-	// Generate a random number between 0 and 1
 	randomNumber := rand.Float64()
-
-	// Find which basis state is selected
 	sum := 0.0
 	for i, probability := range probabilities {
 		sum += probability
-		if randomNumber < sum {
-			// Convert the index of the basis state to a binary string
+		if randomNumber < sum { // Randomly select a state based on the calculated probabilities.
 			return fmt.Sprintf("%0*b", circuit.nQubits, i)
 		}
 	}
 
+	// It should normally not reach this point. Included for completeness.
 	return ""
+}
+
+// calculateProbabilities takes a state vector and returns the corresponding probabilities.
+func calculateProbabilities(state []complex128) []float64 {
+	probabilities := make([]float64, len(state))
+	for i, amplitude := range state {
+		probabilities[i] = cmplx.Abs(amplitude) * cmplx.Abs(amplitude)
+	}
+	return probabilities
 }
