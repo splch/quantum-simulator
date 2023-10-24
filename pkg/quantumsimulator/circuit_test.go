@@ -57,12 +57,41 @@ func TestCircuitGates(t *testing.T) {
 	}
 }
 
+func TestInverseGates(t *testing.T) {
+	circuit, _ := NewCircuit(2)
+
+	circuit.H(0, true)
+	circuit.T(0, true)
+	circuit.X(0, true)
+	circuit.U(0, 1, 2, 3, true)
+	circuit.CX(0, 1, true)
+	circuit.CU(0, 1, 0.1, 0.2, 0.3, true)
+}
+
 func TestControlledGates(t *testing.T) {
 	circuit, _ := NewCircuit(2)
 
 	circuit.H(0)
 	circuit.CX(0, 1)
-	circuit.CU(1, 0, 0.1, 0.2, 0.3, true)
+	circuit.CU(1, 0, 0.2, 0.5, 3.1, true)
+
+	expectedState := []complex128{
+		complex(0.7071067811865475, 0),
+		complex(0.06195108565935163, -0.03384403234422974),
+		complex(0, 0),
+		complex(-0.6309360787088838, 0.3113459635899708),
+	}
+
+	for i := range circuit.State {
+		if circuit.State[i] != expectedState[i] {
+			t.Errorf("Control function failed. Expected %v, but got %v at position %d", expectedState[i], circuit.State[i], i)
+		}
+	}
+}
+
+func TestPrintState(t *testing.T) {
+	circuit, _ := NewCircuit(1)
+	circuit.PrintState()
 }
 
 func TestRun(t *testing.T) {
