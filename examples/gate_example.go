@@ -11,7 +11,7 @@ func main() {
 	// Initialize a quantum circuit
 	circuit, err := quantumsimulator.NewCircuit(3)
 	if err != nil {
-		log.Fatalf("Error initializing circuit: %v", err)
+		log.Fatalf("error initializing circuit: %v", err)
 	}
 
 	// Apply a Hadamard gate
@@ -29,7 +29,7 @@ func main() {
 	// Run the circuit
 	results, err := circuit.Run(100)
 	if err != nil {
-		log.Fatalf("Error running circuit: %v", err)
+		log.Fatalf("error running circuit: %v", err)
 	}
 
 	// Print true probabilities

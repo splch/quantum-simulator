@@ -34,7 +34,7 @@ func main() {
 	// Initialize a quantum circuit
 	circuit, err := quantumsimulator.NewCircuit(qubits)
 	if err != nil {
-		log.Fatalf("Error initializing circuit: %v", err)
+		log.Fatalf("error initializing circuit: %v", err)
 	}
 
 	// Splitting operations and applying them to the circuit
@@ -70,7 +70,7 @@ func main() {
 	// Run the circuit
 	results, err := circuit.Run(shots)
 	if err != nil {
-		log.Fatalf("Error running circuit: %v", err)
+		log.Fatalf("error running circuit: %v", err)
 	}
 
 	// Print measurements

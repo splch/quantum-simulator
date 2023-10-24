@@ -7,7 +7,7 @@ import (
 
 // Gate struct represents a quantum gate with its matrix representation.
 type Gate struct {
-	Matrix [][]complex128 // Matrix representation of the quantum gate.
+	Matrix [][]complex128 // Matrix representation of the quantum gate
 }
 
 // NewGate creates and returns a Gate instance with the provided matrix.
@@ -31,17 +31,17 @@ func U(theta, phi, lambda float64) Gate {
 
 // Predefined quantum gates.
 var (
-	H = NewGate([][]complex128{ // Hadamard gate.
+	H = NewGate([][]complex128{ // Hadamard gate
 		{complex(1/math.Sqrt(2), 0), complex(1/math.Sqrt(2), 0)},
 		{complex(1/math.Sqrt(2), 0), complex(-1/math.Sqrt(2), 0)},
 	})
 
-	X = NewGate([][]complex128{ // Pauli-X gate.
+	X = NewGate([][]complex128{ // Pauli-X gate
 		{complex(0, 0), complex(1, 0)},
 		{complex(1, 0), complex(0, 0)},
 	})
 
-	T = NewGate([][]complex128{ // T gate (π/8 gate).
+	T = NewGate([][]complex128{ // T gate (π/8 gate)
 		{complex(1, 0), complex(0, 0)},
 		{complex(0, 0), cmplx.Exp(complex(0, math.Pi/4))},
 	})
@@ -73,12 +73,12 @@ func (gate *Gate) Control(control, target, nQubits int) Gate {
 func (gate *Gate) Inverse() Gate {
 	rows := len(gate.Matrix)
 	cols := len(gate.Matrix[0])
-	inverseMatrix := make([][]complex128, cols) // Note that rows and cols are swapped.
+	inverseMatrix := make([][]complex128, cols) // Note that rows and cols are swapped
 
 	for i := range inverseMatrix {
 		inverseMatrix[i] = make([]complex128, rows)
 		for j := range inverseMatrix[i] {
-			// Taking the complex conjugate and transposing the matrix.
+			// Taking the complex conjugate and transposing the matrix
 			inverseMatrix[i][j] = cmplx.Conj(gate.Matrix[j][i])
 		}
 	}

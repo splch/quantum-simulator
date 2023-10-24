@@ -5,6 +5,7 @@ package quantumsimulator
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/cmplx"
 	"math/rand"
 )
@@ -13,8 +14,8 @@ import (
 // State holds the current state vector of the quantum circuit,
 // and nQubits holds the total number of qubits in the circuit.
 type Circuit struct {
-	State   []complex128 // The state vector of the circuit.
-	nQubits int          // Number of qubits in the circuit.
+	State   []complex128 // The state vector of the circuit
+	nQubits int          // Number of qubits in the circuit
 }
 
 // NewCircuit initializes a new Circuit with nQubits and returns it.
@@ -25,7 +26,7 @@ func NewCircuit(nQubits int) (*Circuit, error) {
 	}
 
 	state := make([]complex128, 1<<nQubits)
-	state[0] = 1 // Set the initial state to |0...0⟩.
+	state[0] = 1 // Set the initial state to |0...0⟩
 
 	return &Circuit{
 		State:   state,
@@ -43,11 +44,11 @@ func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) error {
 	n := circuit.nQubits
 	var operator [][]complex128
 
-	if len(control) > 0 { // If a control qubit is provided.
+	if len(control) > 0 { // If a control qubit is provided
 		controlQubit := control[0]
 		CGate := gate.Control(controlQubit, target, n)
 		operator = CGate.Matrix
-	} else { // If no control qubit is provided.
+	} else { // If no control qubit is provided
 		operator = IdentityMatrix(1)
 		for qubit := 0; qubit < n; qubit++ {
 			if qubit == target {
@@ -58,62 +59,44 @@ func (circuit *Circuit) ApplyGate(gate Gate, target int, control ...int) error {
 		}
 	}
 
-	circuit.State = Multiply(operator, circuit.State) // Applying the operator to the state vector.
-	return nil                                        // No error occurred.
+	circuit.State = Multiply(operator, circuit.State) // Applying the operator to the state vector
+	return nil                                        // No error occurred
 }
 
 // H applies a Hadamard gate to a target qubit in the circuit, or its inverse if inv is true.
 func (circuit *Circuit) H(target int, inv ...bool) {
-	gate := H
-	if len(inv) > 0 && inv[0] {
-		gate = H.Inverse()
-	}
+	gate := prepareGate(H, inv)
 	circuit.ApplyGate(gate, target)
 }
 
 // T applies a T gate (π/8 gate) to a target qubit in the circuit, or its inverse if inv is true.
 func (circuit *Circuit) T(target int, inv ...bool) {
-	gate := T
-	if len(inv) > 0 && inv[0] {
-		gate = T.Inverse()
-	}
+	gate := prepareGate(T, inv)
 	circuit.ApplyGate(gate, target)
 }
 
 // X applies a Pauli-X gate to a target qubit in the circuit, or its inverse if inv is true.
 func (circuit *Circuit) X(target int, inv ...bool) {
-	gate := X
-	if len(inv) > 0 && inv[0] {
-		gate = X.Inverse()
-	}
+	gate := prepareGate(X, inv)
 	circuit.ApplyGate(gate, target)
 }
 
 // CX applies a controlled-X (CNOT) gate to target qubits in the circuit, or its inverse if inv is true.
 func (circuit *Circuit) CX(control, target int, inv ...bool) {
-	gate := X
-	if len(inv) > 0 && inv[0] {
-		gate = X.Inverse()
-	}
+	gate := prepareGate(X, inv)
 	circuit.ApplyGate(gate, target, control)
 }
 
 // U applies a custom unitary gate defined by the parameters theta, phi, and lambda to a target qubit,
 // or its inverse if inv is true.
 func (circuit *Circuit) U(target int, theta, phi, lambda float64, inv ...bool) {
-	gate := U(theta, phi, lambda)
-	if len(inv) > 0 && inv[0] {
-		gate = gate.Inverse()
-	}
+	gate := prepareGate(U(theta, phi, lambda), inv)
 	circuit.ApplyGate(gate, target)
 }
 
 // CU applies a controlled-U gate to target qubits in the circuit, or its inverse if inv is true.
 func (circuit *Circuit) CU(control, target int, theta, phi, lambda float64, inv ...bool) {
-	gate := U(theta, phi, lambda)
-	if len(inv) > 0 && inv[0] {
-		gate = gate.Inverse()
-	}
+	gate := prepareGate(U(theta, phi, lambda), inv)
 	circuit.ApplyGate(gate, target, control)
 }
 
@@ -131,24 +114,24 @@ func (circuit *Circuit) Run(shots int) (map[string]int, error) {
 		results[measurement]++
 	}
 
-	return results, nil // No error occurred.
+	return results, nil // No error occurred
 }
 
 // measure simulates a single measurement of the quantum circuit and returns the binary string of the measured state.
 func (circuit *Circuit) measure() string {
-	probabilities := calculateProbabilities(circuit.State) // Calculate the probabilities from the state amplitudes.
-
+	var measurement string
+	probabilities := calculateProbabilities(circuit.State) // Calculate the probabilities from the state amplitudes
 	randomNumber := rand.Float64()
 	sum := 0.0
 	for i, probability := range probabilities {
 		sum += probability
-		if randomNumber < sum { // Randomly select a state based on the calculated probabilities.
-			return fmt.Sprintf("%0*b", circuit.nQubits, i)
+		if randomNumber < sum { // Randomly select a state based on the calculated probabilities
+			measurement = fmt.Sprintf("%0*b", circuit.nQubits, i)
+			break
 		}
 	}
 
-	// It should normally not reach this point. Included for completeness.
-	return ""
+	return measurement
 }
 
 // PrintState prints the current quantum state and the probability of each state.
@@ -162,7 +145,6 @@ func (circuit *Circuit) PrintState() {
 
 			// Print the state and its probability
 			fmt.Printf("%s: %f\n", state, probability)
-
 		}
 	}
 }
@@ -171,7 +153,15 @@ func (circuit *Circuit) PrintState() {
 func calculateProbabilities(state []complex128) []float64 {
 	probabilities := make([]float64, len(state))
 	for i, amplitude := range state {
-		probabilities[i] = cmplx.Abs(amplitude) * cmplx.Abs(amplitude)
+		// Probability is amplitude squared
+		probabilities[i] = math.Pow(cmplx.Abs(amplitude), 2)
 	}
 	return probabilities
+}
+
+func prepareGate(gate Gate, inv []bool) Gate {
+	if len(inv) > 0 && inv[0] {
+		gate = gate.Inverse()
+	}
+	return gate
 }
