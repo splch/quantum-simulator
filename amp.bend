@@ -41,11 +41,20 @@ def C.norm2(x: C) -> F32:
     case C{+a, +b}:
       F32.add(F32.mul(a, a), F32.mul(b, b))
 
-# printed as re+imi, for example 0.70710677+0i
+# printed as re+imi or re-imi, for example 0.70710677+0i; adding 0.0 turns a
+# negative zero into a positive one, so a zero never prints with a sign
+def C.show.im(neg: Bool, b: F32) -> String:
+  match neg:
+    case False{}:
+      "+" ++ F32.show(b)
+    case True{}:
+      F32.show(b)
+
 def C.show(x: C) -> String:
   match x:
     case C{a, b}:
-      F32.show(a) ++ "+" ++ F32.show(b) ++ "i"
+      +im = F32.add(b, 0.0)
+      F32.show(F32.add(a, 0.0)) ++ C.show.im(F32.is_lt(im, 0.0), im) ++ "i"
 
 # a one-qubit gate, the matrix [[a, b], [c, d]]
 type Gate is Data:

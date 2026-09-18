@@ -1,4 +1,5 @@
 import Base
+import ./amp.bend as A
 import ./sim.bend as S
 import ./circuits.bend as G
 
@@ -122,6 +123,45 @@ def tele.fin(r: Bool & Bool & S.Q(3n)) -> String:
 def tele(u0: F32, u1: F32) -> String:
   tele.fin(teleport(u0, u1))
 
+# Library: the QFT and Grover
+# ---------------------------
+
+# each component rounded to three decimals, for pinned lines that do not
+# depend on the last bit of cos and sin (the 1e-6 checks carry the precision)
+def round3(v: F32) -> F32:
+  F32.div(F32.round(F32.mul(v, 1000.0)), 1000.0)
+
+def show3.leaf(c: A.C) -> String:
+  match c:
+    case A.C{a, b}:
+      A.C.show(A.C{round3(a), round3(b)})
+
+def show3(n: Nat, q: S.Q(n)) -> String:
+  match n:
+    case 0n:
+      show3.leaf(q)
+    case 1n++p:
+      (l, r) = q
+      show3(p, l) ++ " " ++ show3(p, r)
+
+# |001> then the QFT: (1/sqrt8) e^(2 pi i k/8) at index k
+def qft_state() -> S.Q(3n):
+  S.run(3n, List.append(&2, S.Op, [G.x(2n)], G.qft(3n)), S.ket0(3n))
+
+# the same eight amplitudes written out, with 1/sqrt8 and 1/4
+def r8() -> F32:
+  0.35355339
+
+def qft_want() -> S.Q(3n):
+  (((A.C{r8(), 0.0}, A.C{0.25, 0.25}), (A.C{0.0, r8()}, A.C{F32.neg(0.25), 0.25})), ((A.C{F32.neg(r8()), 0.0}, A.C{F32.neg(0.25), F32.neg(0.25)}), (A.C{0.0, F32.neg(r8())}, A.C{0.25, F32.neg(0.25)})))
+
+# Grover with |101> marked on 3 qubits: the probability of |101> after k
+# iterations, which is exactly 1/8, 25/32 and 121/128 for k = 0, 1, 2
+def grover_p(k: Nat) -> String:
+  circuit = List.append(&2, S.Op, G.each(~G.h, 3n), List.concat(&2, S.Op, List.replicate(List<&2, S.Op>, k, G.grover(3n, [True{}, False{}, True{}]))))
+  q = S.run(3n, circuit, S.ket0(3n))
+  F32.show(round3(S.norm2(3n, S.project(3n, 2n, True{}, S.project(3n, 1n, False{}, S.project(3n, 0n, True{}, q))))))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     IO.print(bell())
@@ -137,6 +177,9 @@ def main() -> IO(Unit):
     IO.print("4096 shots of RY(0.7)|0> (x) Bell(1, 2), expect 1807 1807 241 241:")
     IO.print(S.show_hist(S.sample(3n, 4096, S.seed(), S.run(3n, [G.ry(0.7, 0n), G.h(1n), G.cx(1n, 2n)], S.ket0(3n)))))
     IO.print("teleport RY(0.7)|0>, outcomes 00 01 10 11: " ++ tele(0.9, 0.9) ++ " " ++ tele(0.9, 0.1) ++ " " ++ tele(0.1, 0.9) ++ " " ++ tele(0.1, 0.1))
+    IO.print("QFT|001>: " ++ show3(3n, qft_state()))
+    IO.print("QFT|001> = (1/sqrt8) e^(2 pi i k/8) to 1e-6: " ++ Bool.show(S.near(3n, 1.0e-12, qft_state(), qft_want())))
+    IO.print("Grover |101> probability after 0, 1, 2 iterations: " ++ grover_p(0n) ++ " " ++ grover_p(1n) ++ " " ++ grover_p(2n))
 
 #|0.70710677+0i 0+0i 0+0i 0.70710677+0i
 #|0.70710677+0i 0+0i 0+0i 0+0i 0+0i 0+0i 0+0i 0.70710677+0i
@@ -155,3 +198,6 @@ def main() -> IO(Unit):
 #|100 260
 #|111 214
 #|teleport RY(0.7)|0>, outcomes 00 01 10 11: 00:True 01:True 10:True 11:True
+#|QFT|001>: 0.354+0i 0.25+0.25i 0+0.354i -0.25+0.25i -0.354+0i -0.25-0.25i 0-0.354i 0.25-0.25i
+#|QFT|001> = (1/sqrt8) e^(2 pi i k/8) to 1e-6: True
+#|Grover |101> probability after 0, 1, 2 iterations: 0.125 0.781 0.945
