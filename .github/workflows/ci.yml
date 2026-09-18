@@ -1,0 +1,79 @@
+# The repo's checks on every push to main and every pull request: the pinned
+# #| lines and the numpy differential test on the JS lane, then the same two on
+# a native build. Bend 2 is a TypeScript program run by Bun, so the toolchain
+# is a sparse clone of bendlang/bend at the commit ~/bin/bend pins, plus a
+# two-line wrapper on PATH. The native lane uses the runner's clang.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BEND_REF: e6676b080f25b1bc1bf5b5b7d7a17e22f8022599
+  BEND_VERSION: bend 2.0.5
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check out Bend at the pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: bendlang/bend
+          ref: ${{ env.BEND_REF }}
+          path: .bend
+          sparse-checkout: bend2
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: tests/ref.py
+
+      - name: Put bend on PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/bin/sh\nexec bun "%s/.bend/bend2/main.ts" "$@"\n' "$GITHUB_WORKSPACE" > "$HOME/.local/bin/bend"
+          chmod +x "$HOME/.local/bin/bend"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain versions
+        run: |
+          v=$(bend --version) && echo "$v" && test "$v" = "$BEND_VERSION"
+          bun --version
+          uv --version
+          clang --version | head -1
+
+      - name: Pinned lines and numpy differential test, JS lane
+        run: ./test.sh
+
+      - name: Native demos against the pinned lines
+        if: success() || failure()
+        run: |
+          bend tests/demos.bend -o "$RUNNER_TEMP/demos"
+          "$RUNNER_TEMP/demos" | sed 's/[[:space:]]*$//' > "$RUNNER_TEMP/demos.out"
+          sed -n 's/^#|//p' tests/demos.bend | sed 's/[[:space:]]*$//' | diff - "$RUNNER_TEMP/demos.out"
+
+      - name: Numpy differential test, native lane
+        if: success() || failure()
+        run: uv run tests/ref.py --native
