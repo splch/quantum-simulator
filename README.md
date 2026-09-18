@@ -1,4 +1,4 @@
-# quantum-simulator
+# bend2-quantum-simulator
 
 A short, complete quantum circuit simulator in [Bend 2](https://bend-lang.com). The state is a perfect binary tree of complex `F32` amplitudes indexed by the qubit count at the type level; every gate is one generic tree walk driven by a per-qubit role list (skip, control, target); measurement and sampling are tree folds. Shape and totality are checked by the types, numerics by pinned lines and a numpy differential test.
 
