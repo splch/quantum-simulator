@@ -305,13 +305,16 @@ def tally(us: List<&2, F32>, acc: Nat) -> Nat:
       tally(rest, 1n+acc)
 
 # The probability tree for sampling: at each node the fraction of the
-# subtree's weight that lies in its |0> half, and nothing at the leaves.
-def W(n: Nat) -> Type:
+# subtree's weight that lies in its |0> half, and nothing at the leaves. It is
+# Data, spelled with Sigma since a plain pair is always Type, so that a proof
+# may name a subtree twice; the reference counts this costs are paid once per
+# sampling call.
+def W(n: Nat) -> Data:
   match n:
     case 0n:
       Unit
     case 1n++p:
-      F32 & (W(p) & W(p))
+      Sigma<&2, &2, F32, _ => Sigma<&2, &2, W(p), _ => W(p)>>
 
 # sums consumes the state and returns its total weight beside the tree
 def sums.join(-p: Nat, a: F32 & W(p), b: F32 & W(p)) -> F32 & W(1n+p):
