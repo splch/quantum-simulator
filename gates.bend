@@ -2,6 +2,7 @@ import Base
 import ./amp.bend as A
 import ./sim.bend as S
 import ./circuits.bend as G
+import ./rotations.bend as R
 
 # Identities that run every named gate the demos in main.bend do not, each
 # checked to 1e-6 per amplitude. The rotations take their angles from
@@ -14,6 +15,14 @@ def eq(+n: Nat, a: List<&2, S.Op>, b: List<&2, S.Op>) -> Bool:
 def half_pi() -> F32:
   F32.mul(F32.pi(), 0.5)
 
+# CNOT as a 4x4 on the basis |t1 t2>, for the two-qubit walk
+def cxm() -> S.Gate4:
+  S.Gate4{S.Row{A.C.one(), A.C.zero(), A.C.zero(), A.C.zero()}, S.Row{A.C.zero(), A.C.one(), A.C.zero(), A.C.zero()}, S.Row{A.C.zero(), A.C.zero(), A.C.zero(), A.C.one()}, S.Row{A.C.zero(), A.C.zero(), A.C.one(), A.C.zero()}}
+
+# a state with every amplitude distinct, so that a misrouted gate shows
+def prep3() -> List<&2, S.Op>:
+  [G.h(0n), G.t(0n), G.h(1n), G.s(1n), G.h(2n), G.t(2n), G.cx(0n, 2n)]
+
 # H with its matrix spelled out through U
 def h_raw() -> S.Op:
   G.ctrl(Nil{}, 0n, A.U(A.C{A.rh(), 0.0}, A.C{A.rh(), 0.0}, A.C{A.rh(), 0.0}, A.C{F32.neg(A.rh()), 0.0}))
@@ -24,16 +33,21 @@ def main() -> IO(Unit):
     IO.print("S Sdg = I on |+>: " ++ Bool.show(eq(1n, [G.h(0n), G.s(0n), G.sdg(0n)], [G.h(0n)])))
     IO.print("T Tdg = I on |+>: " ++ Bool.show(eq(1n, [G.h(0n), G.t(0n), G.tdg(0n)], [G.h(0n)])))
     IO.print("Y|0> = S X|0> = i|1>: " ++ Bool.show(eq(1n, [G.y(0n)], [G.x(0n), G.s(0n)])))
-    IO.print("P(pi/2) = S on |+>: " ++ Bool.show(eq(1n, [G.h(0n), G.p(half_pi(), 0n)], [G.h(0n), G.s(0n)])))
-    IO.print("RX(pi)|0> = Sdg X|0> = -i|1>: " ++ Bool.show(eq(1n, [G.rx(F32.pi(), 0n)], [G.x(0n), G.sdg(0n)])))
-    IO.print("RY(pi/2)|0> = H|0>: " ++ Bool.show(eq(1n, [G.ry(half_pi(), 0n)], [G.h(0n)])))
-    IO.print("RZ(pi) = S X Sdg X = diag(-i, i) on |+>: " ++ Bool.show(eq(1n, [G.h(0n), G.rz(F32.pi(), 0n)], [G.h(0n), G.x(0n), G.sdg(0n), G.x(0n), G.s(0n)])))
+    IO.print("P(pi/2) = S on |+>: " ++ Bool.show(eq(1n, [G.h(0n), R.p(half_pi(), 0n)], [G.h(0n), G.s(0n)])))
+    IO.print("RX(pi)|0> = Sdg X|0> = -i|1>: " ++ Bool.show(eq(1n, [R.rx(F32.pi(), 0n)], [G.x(0n), G.sdg(0n)])))
+    IO.print("RY(pi/2)|0> = H|0>: " ++ Bool.show(eq(1n, [R.ry(half_pi(), 0n)], [G.h(0n)])))
+    IO.print("RZ(pi) = S X Sdg X = diag(-i, i) on |+>: " ++ Bool.show(eq(1n, [G.h(0n), R.rz(F32.pi(), 0n)], [G.h(0n), G.x(0n), G.sdg(0n), G.x(0n), G.s(0n)])))
     IO.print("U(H entries) = H: " ++ Bool.show(eq(1n, [h_raw()], [G.h(0n)])))
     IO.print("CZ = (I x H) CX (I x H) on |++>: " ++ Bool.show(eq(2n, [G.h(0n), G.h(1n), G.cz(0n, 1n)], [G.h(0n), G.h(1n), G.h(1n), G.cx(0n, 1n), G.h(1n)])))
-    IO.print("CP(pi) = CZ on |++>: " ++ Bool.show(eq(2n, [G.h(0n), G.h(1n), G.cp(F32.pi(), 0n, 1n)], [G.h(0n), G.h(1n), G.cz(0n, 1n)])))
+    IO.print("CP(pi) = CZ on |++>: " ++ Bool.show(eq(2n, [G.h(0n), G.h(1n), R.cp(F32.pi(), 0n, 1n)], [G.h(0n), G.h(1n), G.cz(0n, 1n)])))
     IO.print("swap(0, 2)|001> = |100>: " ++ Bool.show(eq(3n, List.append(&2, S.Op, [G.x(2n)], G.swap(0n, 2n)), [G.x(0n)])))
-    IO.print("qft(4) op count, 10 rotations + 6 swap CNOTs: " ++ Nat.show(List.length(&2, S.Op, G.qft(4n))))
-    IO.print("QFT|+++> = |000>: " ++ Bool.show(eq(3n, List.append(&2, S.Op, G.each(~G.h, 3n), G.qft(3n)), Nil{})))
+    IO.print("qft(4) op count, 10 rotations + 6 swap CNOTs: " ++ Nat.show(List.length(&2, S.Op, R.qft(4n))))
+    IO.print("QFT|+++> = |000>: " ++ Bool.show(eq(3n, List.append(&2, S.Op, G.each(~G.h, 3n), R.qft(3n)), Nil{})))
+    IO.print("4x4 CNOT = cx, target below control: " ++ Bool.show(eq(3n, List.append(&2, S.Op, prep3(), [G.two(0n, 2n, cxm())]), List.append(&2, S.Op, prep3(), [G.cx(0n, 2n)]))))
+    IO.print("4x4 CNOT = cx, target above control: " ++ Bool.show(eq(3n, List.append(&2, S.Op, prep3(), [G.two(2n, 0n, cxm())]), List.append(&2, S.Op, prep3(), [G.cx(2n, 0n)]))))
+    IO.print("controlled 4x4 CNOT = ccx, control above: " ++ Bool.show(eq(3n, List.append(&2, S.Op, prep3(), [G.ctwo([0n], 1n, 2n, cxm())]), List.append(&2, S.Op, prep3(), [G.ccx(0n, 1n, 2n)]))))
+    IO.print("controlled 4x4 CNOT = ccx, control between: " ++ Bool.show(eq(3n, List.append(&2, S.Op, prep3(), [G.ctwo([1n], 0n, 2n, cxm())]), List.append(&2, S.Op, prep3(), [G.ccx(1n, 0n, 2n)]))))
+    IO.print("controlled 4x4 CNOT = ccx, control below: " ++ Bool.show(eq(3n, List.append(&2, S.Op, prep3(), [G.ctwo([2n], 1n, 0n, cxm())]), List.append(&2, S.Op, prep3(), [G.ccx(2n, 1n, 0n)]))))
 
 #|S S = Z on |+>: True
 #|S Sdg = I on |+>: True
@@ -49,3 +63,8 @@ def main() -> IO(Unit):
 #|swap(0, 2)|001> = |100>: True
 #|qft(4) op count, 10 rotations + 6 swap CNOTs: 16
 #|QFT|+++> = |000>: True
+#|4x4 CNOT = cx, target below control: True
+#|4x4 CNOT = cx, target above control: True
+#|controlled 4x4 CNOT = ccx, control above: True
+#|controlled 4x4 CNOT = ccx, control between: True
+#|controlled 4x4 CNOT = ccx, control below: True

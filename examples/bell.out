@@ -1,0 +1,5 @@
+measure statements are ignored: the final state is sampled instead
+2 qubits, 2 ops
+amplitudes: 0.707+0i 0+0i 0+0i 0.707+0i
+00 2058
+11 2038

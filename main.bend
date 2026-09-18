@@ -2,6 +2,7 @@ import Base
 import ./amp.bend as A
 import ./sim.bend as S
 import ./circuits.bend as G
+import ./rotations.bend as R
 
 # Each demo prints one line, pinned below as a #| line. Amplitudes print root
 # to leaf, so the bitstring 011 means q0=0, q1=1, q2=1.
@@ -101,19 +102,19 @@ def teleport.m1(u1: F32, r: Bool & S.Q(3n)) -> Bool & Bool & S.Q(3n):
   teleport.fix(m0, S.measure(3n, 1n, u1, q))
 
 def teleport(u0: F32, u1: F32) -> Bool & Bool & S.Q(3n):
-  teleport.m1(u1, S.measure(3n, 0n, u0, S.run(3n, [G.ry(0.7, 0n), G.h(1n), G.cx(1n, 2n), G.cx(0n, 1n), G.h(0n)], S.ket0(3n))))
+  teleport.m1(u1, S.measure(3n, 0n, u0, S.run(3n, [R.ry(0.7, 0n), G.h(1n), G.cx(1n, 2n), G.cx(0n, 1n), G.h(0n)], S.ket0(3n))))
 
 # |m0 m1> (x) RY(0.7)|0>: what teleportation must leave behind
 def prep(m0: Bool, m1: Bool) -> List<&2, S.Op>:
   match m0 m1:
     case False{} False{}:
-      [G.ry(0.7, 2n)]
+      [R.ry(0.7, 2n)]
     case False{} True{}:
-      [G.x(1n), G.ry(0.7, 2n)]
+      [G.x(1n), R.ry(0.7, 2n)]
     case True{} False{}:
-      [G.x(0n), G.ry(0.7, 2n)]
+      [G.x(0n), R.ry(0.7, 2n)]
     case True{} True{}:
-      [G.x(0n), G.x(1n), G.ry(0.7, 2n)]
+      [G.x(0n), G.x(1n), R.ry(0.7, 2n)]
 
 # the outcomes, and whether the final state matches prep to 1e-6 per amplitude
 def tele.fin(r: Bool & Bool & S.Q(3n)) -> String:
@@ -126,27 +127,9 @@ def tele(u0: F32, u1: F32) -> String:
 # Library: the QFT and Grover
 # ---------------------------
 
-# each component rounded to three decimals, for pinned lines that do not
-# depend on the last bit of cos and sin (the 1e-6 checks carry the precision)
-def round3(v: F32) -> F32:
-  F32.div(F32.round(F32.mul(v, 1000.0)), 1000.0)
-
-def show3.leaf(c: A.C) -> String:
-  match c:
-    case A.C{a, b}:
-      A.C.show(A.C{round3(a), round3(b)})
-
-def show3(n: Nat, q: S.Q(n)) -> String:
-  match n:
-    case 0n:
-      show3.leaf(q)
-    case 1n++p:
-      (l, r) = q
-      show3(p, l) ++ " " ++ show3(p, r)
-
 # |001> then the QFT: (1/sqrt8) e^(2 pi i k/8) at index k
 def qft_state() -> S.Q(3n):
-  S.run(3n, List.append(&2, S.Op, [G.x(2n)], G.qft(3n)), S.ket0(3n))
+  S.run(3n, List.append(&2, S.Op, [G.x(2n)], R.qft(3n)), S.ket0(3n))
 
 # the same eight amplitudes written out, with 1/sqrt8 and 1/4
 def r8() -> F32:
@@ -160,7 +143,7 @@ def qft_want() -> S.Q(3n):
 def grover_p(k: Nat) -> String:
   circuit = List.append(&2, S.Op, G.each(~G.h, 3n), List.concat(&2, S.Op, List.replicate(List<&2, S.Op>, k, G.grover(3n, [True{}, False{}, True{}]))))
   q = S.run(3n, circuit, S.ket0(3n))
-  F32.show(round3(S.norm2(3n, S.project(3n, 2n, True{}, S.project(3n, 1n, False{}, S.project(3n, 0n, True{}, q))))))
+  F32.show(A.F32.round3(S.norm2(3n, S.project(3n, 2n, True{}, S.project(3n, 1n, False{}, S.project(3n, 0n, True{}, q))))))
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -175,9 +158,9 @@ def main() -> IO(Unit):
     IO.print("4096 Bell shots, two bins within 3 sigma: " ++ Bool.show(bell_ok(bell_hist())))
     IO.print(S.show_hist(bell_hist()))
     IO.print("4096 shots of RY(0.7)|0> (x) Bell(1, 2), expect 1807 1807 241 241:")
-    IO.print(S.show_hist(S.sample(3n, 4096, S.seed(), S.run(3n, [G.ry(0.7, 0n), G.h(1n), G.cx(1n, 2n)], S.ket0(3n)))))
+    IO.print(S.show_hist(S.sample(3n, 4096, S.seed(), S.run(3n, [R.ry(0.7, 0n), G.h(1n), G.cx(1n, 2n)], S.ket0(3n)))))
     IO.print("teleport RY(0.7)|0>, outcomes 00 01 10 11: " ++ tele(0.9, 0.9) ++ " " ++ tele(0.9, 0.1) ++ " " ++ tele(0.1, 0.9) ++ " " ++ tele(0.1, 0.1))
-    IO.print("QFT|001>: " ++ show3(3n, qft_state()))
+    IO.print("QFT|001>: " ++ S.show3(3n, qft_state()))
     IO.print("QFT|001> = (1/sqrt8) e^(2 pi i k/8) to 1e-6: " ++ Bool.show(S.near(3n, 1.0e-12, qft_state(), qft_want())))
     IO.print("Grover |101> probability after 0, 1, 2 iterations: " ++ grover_p(0n) ++ " " ++ grover_p(1n) ++ " " ++ grover_p(2n))
 
@@ -190,13 +173,13 @@ def main() -> IO(Unit):
 #|<Z0> on |0> and |1>: 1 -1
 #|measure q0 of Bell, u = 0.9 then 0.1: 0 True, 1 True
 #|4096 Bell shots, two bins within 3 sigma: True
-#|00 2056
-#|11 2040
+#|00 2058
+#|11 2038
 #|4096 shots of RY(0.7)|0> (x) Bell(1, 2), expect 1807 1807 241 241:
-#|000 1815
-#|011 1807
-#|100 260
-#|111 214
+#|000 1787
+#|011 1815
+#|100 239
+#|111 255
 #|teleport RY(0.7)|0>, outcomes 00 01 10 11: 00:True 01:True 10:True 11:True
 #|QFT|001>: 0.354+0i 0.25+0.25i 0+0.354i -0.25+0.25i -0.354+0i -0.25-0.25i 0-0.354i 0.25-0.25i
 #|QFT|001> = (1/sqrt8) e^(2 pi i k/8) to 1e-6: True

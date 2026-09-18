@@ -5,6 +5,7 @@
 import Base
 import ./sim.bend as S
 import ./circuits.bend as G
+import ./rotations.bend as R
 import ./LAWS.bend as Laws
 
 # Nat and list lemmas
@@ -75,6 +76,8 @@ def Laws.run_append(n, xs, ys, q):
       {==}
     case S.Op{t, cs, g} <> rest:
       Laws.run_append(n, rest, ys, S.apply(n, S.roles(n, t, cs), g, q))
+    case S.Op4{t1, t2, cs, g} <> rest:
+      Laws.run_append(n, rest, ys, S.apply4(n, S.roles4(n, t1, t2, cs), g, q))
 
 # Roles
 # -----
@@ -96,6 +99,17 @@ def Laws.roles_len(n, t, cs):
       {==}
     case 1n+p 1n+u:
       %Laws.roles_len(p, u, S.down(cs)) : {1n+p == 1n+_ : Nat}
+      {==}
+
+def Laws.roles4_len(n, t1, t2, cs):
+  match n t1:
+    case 0n _:
+      {==}
+    case 1n+p 0n:
+      %Laws.roles_len(p, Nat.sub(t2, 1n), S.down(cs)) : {1n+p == 1n+_ : Nat}
+      {==}
+    case 1n+p 1n+u:
+      %Laws.roles4_len(p, u, Nat.sub(t2, 1n), S.down(cs)) : {1n+p == 1n+_ : Nat}
       {==}
 
 # induction on the target's index, shifting the controls down each level
@@ -203,8 +217,8 @@ def Laws.qft_go_len(m, off):
     case 0n:
       {==}
     case 1n++r:
-      %len_append(S.Op, G.qft.rots(r, off, 1n+off, F32.mul(F32.pi(), 0.5)), G.qft.go(r, 1n+off)) : {Laws.tri(1n+r) == 1n+_ : Nat}
-      %Laws.rots_len(r, off, 1n+off, F32.mul(F32.pi(), 0.5)) : {Laws.tri(1n+r) == 1n+Nat.add(_, List.length(&2, S.Op, G.qft.go(r, 1n+off))) : Nat}
+      %len_append(S.Op, R.qft.rots(r, off, 1n+off, F32.mul(F32.pi(), 0.5)), R.qft.go(r, 1n+off)) : {Laws.tri(1n+r) == 1n+_ : Nat}
+      %Laws.rots_len(r, off, 1n+off, F32.mul(F32.pi(), 0.5)) : {Laws.tri(1n+r) == 1n+Nat.add(_, List.length(&2, S.Op, R.qft.go(r, 1n+off))) : Nat}
       %Laws.qft_go_len(r, 1n+off) : {Laws.tri(1n+r) == 1n+Nat.add(r, _) : Nat}
       {==}
 
@@ -217,8 +231,8 @@ def Laws.swaps_len(k, lo, hi):
       {==}
 
 def Laws.qft_len(n):
-  %len_append(S.Op, G.qft.go(n, 0n), G.qft.swaps(Nat.div(n, 2n), 0n, Nat.sub(n, 1n))) : {Nat.add(Laws.tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == _ : Nat}
-  %Laws.qft_go_len(n, 0n) : {Nat.add(Laws.tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == Nat.add(_, List.length(&2, S.Op, G.qft.swaps(Nat.div(n, 2n), 0n, Nat.sub(n, 1n)))) : Nat}
+  %len_append(S.Op, R.qft.go(n, 0n), R.qft.swaps(Nat.div(n, 2n), 0n, Nat.sub(n, 1n))) : {Nat.add(Laws.tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == _ : Nat}
+  %Laws.qft_go_len(n, 0n) : {Nat.add(Laws.tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == Nat.add(_, List.length(&2, S.Op, R.qft.swaps(Nat.div(n, 2n), 0n, Nat.sub(n, 1n)))) : Nat}
   %Laws.swaps_len(Nat.div(n, 2n), 0n, Nat.sub(n, 1n)) : {Nat.add(Laws.tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == Nat.add(Laws.tri(n), _) : Nat}
   {==}
 

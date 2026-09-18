@@ -129,9 +129,143 @@ def roles(n: Nat, t: Nat, +cs: List<&2, Nat>) -> List<&2, Role>:
     case 1n+p 1n+u:
       here(cs) <> roles(p, u, down(cs))
 
-# one gate of a circuit: g on target t with controls cs, indices from the root
+# Two-qubit gates
+# ---------------
+# A 4x4 matrix on the targets t1 and t2, t1 the shallower, acting on the
+# basis |t1 t2> in the order 00 01 10 11. apply4 walks down to t1, mix4a
+# carries its two subtrees down to t2 together, and mix4b carries the four
+# subtrees below both targets down to the leaves, where the matrix acts.
+# The entries are scalars, so the exact build has exact two-qubit gates.
+
+type Row is Data:
+  Row{a: A.C, b: A.C, c: A.C, d: A.C}
+
+type Gate4 is Data:
+  Gate4{r0: Row, r1: Row, r2: Row, r3: Row}
+
+# the dot product of a row with the four amplitudes, in canonical form
+def Row.dot(r: Row, +x: A.C, +y: A.C, +z: A.C, +w: A.C) -> A.C:
+  match r:
+    case Row{a, b, c, d}:
+      A.C.canon(A.C.add(A.C.add(A.C.mul(a, x), A.C.mul(b, y)), A.C.add(A.C.mul(c, z), A.C.mul(d, w))))
+
+# the matrix on the four amplitudes: ((new 00, new 01), (new 10, new 11))
+def Gate4.apply(g: Gate4, +x: A.C, +y: A.C, +z: A.C, +w: A.C) -> (A.C & A.C) & (A.C & A.C):
+  match g:
+    case Gate4{r0, r1, r2, r3}:
+      ((Row.dot(r0, x, y, z, w), Row.dot(r1, x, y, z, w)), (Row.dot(r2, x, y, z, w), Row.dot(r3, x, y, z, w)))
+
+# the same matrix with its two qubits exchanged: basis states 01 and 10 swap
+def Row.flip(r: Row) -> Row:
+  match r:
+    case Row{a, b, c, d}:
+      Row{a, c, b, d}
+
+def Gate4.flip(g: Gate4) -> Gate4:
+  match g:
+    case Gate4{r0, r1, r2, r3}:
+      Gate4{Row.flip(r0), Row.flip(r2), Row.flip(r1), Row.flip(r3)}
+
+# below both targets: the four subtrees x y z w (basis 00 01 10 11) walk to
+# the leaves together; the result is ((x', y'), (z', w')), the two subtrees
+# of the shallower target
+def mix4b.join(-p: Nat, u: Q(1n+p) & Q(1n+p), v: Q(1n+p) & Q(1n+p)) -> Q(2n+p) & Q(2n+p):
+  (l0, r0) = u
+  (x0, y0) = l0
+  (z0, w0) = r0
+  (l1, r1) = v
+  (x1, y1) = l1
+  (z1, w1) = r1
+  (((x0, x1), (y0, y1)), ((z0, z1), (w0, w1)))
+
+# a control below both targets: the |0> halves pass through
+def mix4b.ctrl(-p: Nat, x0: Q(p), y0: Q(p), z0: Q(p), w0: Q(p), v: Q(1n+p) & Q(1n+p)) -> Q(2n+p) & Q(2n+p):
+  (l1, r1) = v
+  (x1, y1) = l1
+  (z1, w1) = r1
+  (((x0, x1), (y0, y1)), ((z0, z1), (w0, w1)))
+
+def mix4b(n: Nat, +rs: List<&2, Role>, +g: Gate4, x: Q(n), y: Q(n), z: Q(n), w: Q(n)) -> Q(1n+n) & Q(1n+n):
+  match n rs:
+    case 0n _:
+      Gate4.apply(g, x, y, z, w)
+    case 1n++p Nil{}:
+      (x0, x1) = x
+      (y0, y1) = y
+      (z0, z1) = z
+      (w0, w1) = w
+      u v = mix4b(p, Nil{}, g, x0, y0, z0, w0) mix4b(p, Nil{}, g, x1, y1, z1, w1)
+      mix4b.join(p, u, v)
+    case 1n++p Ctrl{} <> t:
+      (x0, x1) = x
+      (y0, y1) = y
+      (z0, z1) = z
+      (w0, w1) = w
+      mix4b.ctrl(p, x0, y0, z0, w0, mix4b(p, t, g, x1, y1, z1, w1))
+    case 1n++p _ <> t:
+      (x0, x1) = x
+      (y0, y1) = y
+      (z0, z1) = z
+      (w0, w1) = w
+      u v = mix4b(p, t, g, x0, y0, z0, w0) mix4b(p, t, g, x1, y1, z1, w1)
+      mix4b.join(p, u, v)
+
+# between the targets: the two subtrees of the shallower target walk down to
+# the deeper one together; without a second Targ the gate does nothing
+def mix4a(n: Nat, +rs: List<&2, Role>, +g: Gate4, l: Q(n), r: Q(n)) -> Q(n) & Q(n):
+  match n rs:
+    case 0n _:
+      (l, r)
+    case 1n++p Nil{}:
+      (l, r)
+    case 1n++p Targ{} <> t:
+      (l0, l1) = l
+      (r0, r1) = r
+      mix4b(p, t, g, l0, l1, r0, r1)
+    case 1n++p Ctrl{} <> t:
+      (l0, l1) = l
+      (r0, r1) = r
+      mix.ctrl(p, l0, r0, mix4a(p, t, g, l1, r1))
+    case 1n++p Skip{} <> t:
+      (l0, l1) = l
+      (r0, r1) = r
+      a b = mix4a(p, t, g, l0, r0) mix4a(p, t, g, l1, r1)
+      mix.join(p, a, b)
+
+# above the shallower target, as apply
+def apply4(n: Nat, +rs: List<&2, Role>, +g: Gate4, q: Q(n)) -> Q(n):
+  match n rs:
+    case 0n _:
+      q
+    case 1n++p Nil{}:
+      q
+    case 1n++p Skip{} <> t:
+      (l, r) = q
+      a b = apply4(p, t, g, l) apply4(p, t, g, r)
+      (a, b)
+    case 1n++p Ctrl{} <> t:
+      (l, r) = q
+      (l, apply4(p, t, g, r))
+    case 1n++p Targ{} <> t:
+      (l, r) = q
+      mix4a(p, t, g, l, r)
+
+# the roles of a two-qubit gate: Targ at t1 and at t2 (t1 the shallower),
+# Ctrl at the controls, Skip elsewhere
+def roles4(n: Nat, t1: Nat, t2: Nat, +cs: List<&2, Nat>) -> List<&2, Role>:
+  match n t1:
+    case 0n _:
+      Nil{}
+    case 1n+p 0n:
+      Targ{} <> roles(p, Nat.sub(t2, 1n), down(cs))
+    case 1n+p 1n+u:
+      here(cs) <> roles4(p, u, Nat.sub(t2, 1n), down(cs))
+
+# one gate of a circuit: g on target t with controls cs, or a two-qubit g on
+# the targets t1 and t2 (t1 the shallower); indices count from the root
 type Op is Data:
   Op{t: Nat, cs: List<&2, Nat>, g: A.Gate}
+  Op4{t1: Nat, t2: Nat, cs: List<&2, Nat>, g: Gate4}
 
 # a circuit is a list of ops, applied first to last
 def run(+n: Nat, ops: List<&2, Op>, q: Q(n)) -> Q(n):
@@ -140,6 +274,8 @@ def run(+n: Nat, ops: List<&2, Op>, q: Q(n)) -> Q(n):
       q
     case Op{t, cs, g} <> rest:
       run(n, rest, apply(n, roles(n, t, cs), g, q))
+    case Op4{t1, t2, cs, g} <> rest:
+      run(n, rest, apply4(n, roles4(n, t1, t2, cs), g, q))
 
 # the amplitudes root to leaf, separated by spaces
 def show(n: Nat, q: Q(n)) -> String:
@@ -149,6 +285,15 @@ def show(n: Nat, q: Q(n)) -> String:
     case 1n++p:
       (l, r) = q
       show(p, l) ++ " " ++ show(p, r)
+
+# the amplitudes rounded for display (three decimals with F32 amplitudes)
+def show3(n: Nat, q: Q(n)) -> String:
+  match n:
+    case 0n:
+      A.C.show(A.C.round(q))
+    case 1n++p:
+      (l, r) = q
+      show3(p, l) ++ " " ++ show3(p, r)
 
 # every amplitude of a is within sqrt(eps2) of its counterpart in b
 def near(n: Nat, +eps2: F32, a: Q(n), b: Q(n)) -> Bool:
@@ -275,9 +420,21 @@ def xs32(+x: U32) -> U32:
   +b = (a .^. (a >> 17n) : U32)
   (b .^. (b << 5n) : U32)
 
-# a uniform in [0, 1) from the top 24 bits of x; both steps are exact
+# The hash-prospector finalizer (16, 0x21f0aaad, 15, 0xd35a2d97, 15), in
+# decimal since there are no hex literals: the raw output of xorshift32 is a
+# linear function of its state, and the finalizer breaks that. Over 300 seeds
+# the raw stream already passed chi-square tests at 4096 draws; this is the
+# standard precaution, not a repair.
+def mix32(+x: U32) -> U32:
+  +a = (x .^. (x >> 16n) : U32)
+  +b = (a * 569420461 : U32)
+  +c = (b .^. (b >> 15n) : U32)
+  +d = (c * 3545902487 : U32)
+  (d .^. (d >> 15n) : U32)
+
+# a uniform in [0, 1) from the top 24 bits of the finalized x; both steps are exact
 def unif(x: U32) -> F32:
-  F32.mul(U32.to_f32((x >> 8n : U32)), 5.9604645e-8)
+  F32.mul(U32.to_f32((mix32(x) >> 8n : U32)), 5.9604645e-8)
 
 # the default seed, fixed so that histograms are reproducible
 def seed() -> U32:

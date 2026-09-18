@@ -6,6 +6,7 @@ import Base
 import ./amp.bend as A
 import ./sim.bend as S
 import ./circuits.bend as G
+import ./rotations.bend as R
 
 # n Skips
 def skips(n: Nat) -> List<&2, S.Role>:
@@ -72,6 +73,13 @@ law ctrls_len:
   for n: Nat
   for cs: List<&2, Nat>
   {n == List.length(&2, S.Role, S.ctrls(n, cs)) : Nat}
+
+law roles4_len:
+  for n: Nat
+  for t1: Nat
+  for t2: Nat
+  for cs: List<&2, Nat>
+  {n == List.length(&2, S.Role, S.roles4(n, t1, t2, cs)) : Nat}
 
 # LAW: the target reads Targ; n is written as t + 1 + m so that t is in range
 law roles_targ:
@@ -145,22 +153,22 @@ law rots_len:
   for tg: Nat
   for c: Nat
   for angle: F32
-  {d == List.length(&2, S.Op, G.qft.rots(d, tg, c, angle)) : Nat}
+  {d == List.length(&2, S.Op, R.qft.rots(d, tg, c, angle)) : Nat}
 
 law qft_go_len:
   for m: Nat
   for +off: Nat
-  {tri(m) == List.length(&2, S.Op, G.qft.go(m, off)) : Nat}
+  {tri(m) == List.length(&2, S.Op, R.qft.go(m, off)) : Nat}
 
 law swaps_len:
   for k: Nat
   for lo: Nat
   for hi: Nat
-  {Nat.mul(k, 3n) == List.length(&2, S.Op, G.qft.swaps(k, lo, hi)) : Nat}
+  {Nat.mul(k, 3n) == List.length(&2, S.Op, R.qft.swaps(k, lo, hi)) : Nat}
 
 law qft_len:
   for +n: Nat
-  {Nat.add(tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == List.length(&2, S.Op, G.qft(n)) : Nat}
+  {Nat.add(tri(n), Nat.mul(Nat.div(n, 2n), 3n)) == List.length(&2, S.Op, R.qft(n)) : Nat}
 
 # Sampling
 # --------

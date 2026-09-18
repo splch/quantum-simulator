@@ -6,6 +6,7 @@
 # are bench_gen_* (gitignored) and are removed afterwards.
 #   ./bench.sh 20:5 24:2            # gates
 #   ./bench.sh sample:24:10000      # sampling
+#   ./bench.sh flat:24:2:12         # the hybrid, blocks of 2^12 amplitudes
 #   THREADS=1 ./bench.sh 28:1       # one lane only
 set -u
 cd "$(dirname "$0")" || exit 1
@@ -24,6 +25,9 @@ for spec in "$@"; do
     sample:*) IFS=: read -r _ nq ns <<< "$spec"; src=bench_gen_s${nq}_${ns}.bend
               sed "s/NQ/${nq}n/g; s/NS/${ns}/g" bench_sample.bend > "$src"
               echo "sample: $nq qubits, $ns shots" ;;
+    flat:*)   IFS=: read -r _ nq nl lb <<< "$spec"; src=bench_gen_f${nq}_${nl}_${lb}.bend
+              sed "s/NM/$((nq - lb))n/g; s/LB/${lb}n/g; s/NL/${nl}n/g" bench_flat.bend > "$src"
+              echo "flat: $nq qubits as $((nq - lb)) tree levels over blocks of 2^$lb, $nl layers = $((nq * nl)) H gates" ;;
     *)        IFS=: read -r nq nl <<< "$spec"; src=bench_gen_${nq}_${nl}.bend
               sed "s/NQ/${nq}n/g; s/NL/${nl}n/g" bench.bend > "$src"
               echo "gates: $nq qubits, $nl layers = $((nq * nl)) H gates" ;;

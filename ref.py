@@ -8,6 +8,7 @@ simulator and by a numpy reference, with every amplitude compared to 1e-5.
     uv run ref.py                  # 20 circuits of 40 gates on 5 qubits, JS lane
     uv run ref.py --native         # also build and run the native binary
     uv run ref.py --seed 7 --keep  # keep diff_tmp.bend for a look
+    uv run ref.py --exact          # Clifford+T circuits on the exact build, compared exactly
 
 Qubit 0 is the most significant bit on both sides. The generated program is
 written beside this script as diff_tmp.bend (gitignored), because a Bend
@@ -20,6 +21,7 @@ import math
 import re
 import subprocess
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -61,11 +63,122 @@ def one_qubit_table(rng):
         "sdg": ("G.sdg", "A.Sdg()", np.diag([1, -1j])),
         "t": ("G.t", "A.T()", np.diag([1, np.exp(1j * math.pi / 4)])),
         "tdg": ("G.tdg", "A.Tdg()", np.diag([1, np.exp(-1j * math.pi / 4)])),
-        "p": (f"G.p({lit(phi)}, ", f"A.P({lit(phi)})", np.diag([1, np.exp(1j * phi)])),
-        "rx": (f"G.rx({lit(th)}, ", f"A.RX({lit(th)})", np.array([[c, -1j * s], [-1j * s, c]])),
-        "ry": (f"G.ry({lit(th)}, ", f"A.RY({lit(th)})", np.array([[c, -s], [s, c]], complex)),
-        "rz": (f"G.rz({lit(th)}, ", f"A.RZ({lit(th)})", np.diag([np.exp(-1j * th / 2), np.exp(1j * th / 2)])),
+        "p": (f"R.p({lit(phi)}, ", f"A.P({lit(phi)})", np.diag([1, np.exp(1j * phi)])),
+        "rx": (f"R.rx({lit(th)}, ", f"A.RX({lit(th)})", np.array([[c, -1j * s], [-1j * s, c]])),
+        "ry": (f"R.ry({lit(th)}, ", f"A.RY({lit(th)})", np.array([[c, -s], [s, c]], complex)),
+        "rz": (f"R.rz({lit(th)}, ", f"A.RZ({lit(th)})", np.diag([np.exp(-1j * th / 2), np.exp(1j * th / 2)])),
     }
+
+
+# The exact reference mirrors exact.bend: an amplitude is (a, b, c, d, k) for
+# (a + b w + c w^2 + d w^3) / sqrt2^k, kept with the least k.
+def x_rot(z):
+    a, b, c, d, k = z
+    return (-d, a, b, c, k)
+
+
+def x_neg(z):
+    a, b, c, d, k = z
+    return (-a, -b, -c, -d, k)
+
+
+def x_up(z):
+    a, b, c, d, k = z
+    return (b - d, a + c, b + d, c - a, k + 1)
+
+
+def x_add(z, w):
+    while z[4] < w[4]:
+        z = x_up(z)
+    while w[4] < z[4]:
+        w = x_up(w)
+    return (z[0] + w[0], z[1] + w[1], z[2] + w[2], z[3] + w[3], z[4])
+
+
+def x_reduce(z):
+    a, b, c, d, k = z
+    while k > 0 and (a - c) % 2 == 0 and (b - d) % 2 == 0:
+        a, b, c, d, k = (b - d) // 2, (a + c) // 2, (b + d) // 2, (c - a) // 2, k - 1
+    return (a, b, c, d, k)
+
+
+def x_h(x, y):
+    a, b, c, d, k = x_add(x, y)
+    e, f, g, h, l = x_add(x, x_neg(y))
+    return x_reduce((a, b, c, d, k + 1)), x_reduce((e, f, g, h, l + 1))
+
+
+def rotn(z, n):
+    for _ in range(n):
+        z = x_rot(z)
+    return z
+
+
+EXACT_GATES = {
+    "h": lambda x, y: x_h(x, y),
+    "x": lambda x, y: (y, x),
+    "y": lambda x, y: (rotn(y, 6), rotn(x, 2)),
+    "z": lambda x, y: (x, x_neg(y)),
+    "s": lambda x, y: (x, rotn(y, 2)),
+    "sdg": lambda x, y: (x, rotn(y, 6)),
+    "t": lambda x, y: (x, rotn(y, 1)),
+    "tdg": lambda x, y: (x, rotn(y, 7)),
+}
+EXACT_NAMES = {"h": "A.H()", "x": "A.X()", "y": "A.Y()", "z": "A.Z()", "s": "A.S()", "sdg": "A.Sdg()", "t": "A.T()", "tdg": "A.Tdg()"}
+
+
+def random_exact_gate(rng, n):
+    """One random Clifford+T gate: (Bend text, is it a list-valued segment, [(controls, target, name)])."""
+    kind = rng.choice(["one", "cx", "cz", "swap", "ccx", "ctrl"], p=[0.4, 0.15, 0.1, 0.1, 0.1, 0.15])
+    if kind == "one":
+        name = rng.choice(list(EXACT_GATES))
+        q = int(rng.integers(n))
+        return f"G.{name}({q}n)", False, [([], q, name)]
+    if kind in ("cx", "cz"):
+        c, q = (int(v) for v in rng.choice(n, 2, replace=False))
+        return f"G.{kind}({c}n, {q}n)", False, [([c], q, "x" if kind == "cx" else "z")]
+    if kind == "swap":
+        a, b = (int(v) for v in rng.choice(n, 2, replace=False))
+        return f"G.swap({a}n, {b}n)", True, [([a], b, "x"), ([b], a, "x"), ([a], b, "x")]
+    if kind == "ccx":
+        c1, c2, q = (int(v) for v in rng.choice(n, 3, replace=False))
+        return f"G.ccx({c1}n, {c2}n, {q}n)", False, [([c1, c2], q, "x")]
+    k = int(rng.integers(1, min(4, n)))
+    *cs, q = (int(v) for v in rng.choice(n, k + 1, replace=False))
+    name = rng.choice(list(EXACT_GATES))
+    return f"G.ctrl({nats(cs)}, {q}n, {EXACT_NAMES[name]})", False, [(cs, q, name)]
+
+
+def apply_exact(psi, n, cs, t, name):
+    out = list(psi)
+    bit = lambda i, q: (i >> (n - 1 - q)) & 1
+    for i in range(1 << n):
+        if bit(i, t) or not all(bit(i, c) for c in cs):
+            continue
+        j = i | (1 << (n - 1 - t))
+        out[i], out[j] = EXACT_GATES[name](psi[i], psi[j])
+    return out
+
+
+XAMP = re.compile(r"^\[(-?\d+) (-?\d+) (-?\d+) (-?\d+)\](?:/rt2\^(\d+))?$")
+
+
+def parse_exact(line):
+    out = []
+    for tok in re.findall(r"\[[^\]]*\](?:/rt2\^\d+)?", line):
+        m = XAMP.match(tok)
+        if not m:
+            sys.exit(f"cannot parse exact amplitude {tok!r} in: {line}")
+        out.append(tuple(int(v) for v in m.groups()[:4]) + (int(m.group(5) or 0),))
+    return out
+
+
+def gen_exact_build():
+    """sim_x.bend and circuits_x.bend: the same sources over exact.bend."""
+    sim = (HERE / "sim.bend").read_text().replace("import ./amp.bend as A", "import ./exact.bend as A")
+    (HERE / "sim_x.bend").write_text(sim)
+    circ = (HERE / "circuits.bend").read_text().replace("import ./amp.bend as A", "import ./exact.bend as A").replace("import ./sim.bend as S", "import ./sim_x.bend as S")
+    (HERE / "circuits_x.bend").write_text(circ)
 
 
 def random_unitary(rng):
@@ -75,32 +188,50 @@ def random_unitary(rng):
     return np.array([[complex(f32(z.real), f32(z.imag)) for z in row] for row in q])
 
 
+def random_unitary4(rng):
+    """A Haar-random 4x4 unitary with its entries rounded to F32."""
+    q, r = np.linalg.qr(rng.normal(size=(4, 4)) + 1j * rng.normal(size=(4, 4)))
+    q = q * (np.diag(r) / np.abs(np.diag(r)))
+    return np.array([[complex(f32(z.real), f32(z.imag)) for z in row] for row in q])
+
+
+def gate4_lit(m):
+    rows = ", ".join("S.Row{" + ", ".join(c_lit(z) for z in row) + "}" for row in m)
+    return "S.Gate4{" + rows + "}"
+
+
 def random_gate(rng, n):
-    """One random gate: (Bend text, is it a list-valued segment, [(controls, target, matrix)])."""
+    """One random gate: (Bend text, is it a list-valued segment, [(controls, targets, matrix)])."""
     table = one_qubit_table(rng)
-    kind = rng.choice(["one", "cx", "cz", "cp", "swap", "ccx", "ctrl_named", "ctrl_u"],
-                      p=[0.34, 0.12, 0.08, 0.08, 0.08, 0.08, 0.12, 0.10])
+    kind = rng.choice(["one", "cx", "cz", "cp", "swap", "ccx", "ctrl_named", "ctrl_u", "u4", "cu4"],
+                      p=[0.30, 0.10, 0.07, 0.07, 0.07, 0.07, 0.10, 0.08, 0.08, 0.06])
+    if kind in ("u4", "cu4"):
+        k = 0 if kind == "u4" else int(rng.integers(1, min(3, n - 1)))
+        *cs, t1, t2 = (int(v) for v in rng.choice(n, k + 2, replace=False))
+        m = random_unitary4(rng)
+        text = f"G.two({t1}n, {t2}n, {gate4_lit(m)})" if not cs else f"G.ctwo({nats(cs)}, {t1}n, {t2}n, {gate4_lit(m)})"
+        return text, False, [(cs, [t1, t2], m)]
     if kind == "one":
         name = rng.choice(list(table))
         ctor, _, m = table[name]
         q = int(rng.integers(n))
         text = f"{ctor}{q}n)" if ctor.endswith(", ") else f"{ctor}({q}n)"
-        return text, False, [([], q, m)]
+        return text, False, [([], [q], m)]
     if kind in ("cx", "cz", "cp"):
         c, q = (int(v) for v in rng.choice(n, 2, replace=False))
         if kind == "cx":
-            return f"G.cx({c}n, {q}n)", False, [([c], q, table["x"][2])]
+            return f"G.cx({c}n, {q}n)", False, [([c], [q], table["x"][2])]
         if kind == "cz":
-            return f"G.cz({c}n, {q}n)", False, [([c], q, table["z"][2])]
+            return f"G.cz({c}n, {q}n)", False, [([c], [q], table["z"][2])]
         phi = f32(rng.uniform(0, 2 * math.pi))
-        return f"G.cp({lit(phi)}, {c}n, {q}n)", False, [([c], q, np.diag([1, np.exp(1j * phi)]))]
+        return f"R.cp({lit(phi)}, {c}n, {q}n)", False, [([c], [q], np.diag([1, np.exp(1j * phi)]))]
     if kind == "swap":
         a, b = (int(v) for v in rng.choice(n, 2, replace=False))
         x = table["x"][2]
-        return f"G.swap({a}n, {b}n)", True, [([a], b, x), ([b], a, x), ([a], b, x)]
+        return f"G.swap({a}n, {b}n)", True, [([a], [b], x), ([b], [a], x), ([a], [b], x)]
     if kind == "ccx":
         c1, c2, q = (int(v) for v in rng.choice(n, 3, replace=False))
-        return f"G.ccx({c1}n, {c2}n, {q}n)", False, [([c1, c2], q, table["x"][2])]
+        return f"G.ccx({c1}n, {c2}n, {q}n)", False, [([c1, c2], [q], table["x"][2])]
     k = int(rng.integers(1, min(4, n)))            # 1 to 3 controls
     *cs, q = (int(v) for v in rng.choice(n, k + 1, replace=False))
     if kind == "ctrl_named":
@@ -109,14 +240,14 @@ def random_gate(rng, n):
     else:
         m = random_unitary(rng)
         gate = f"A.U({c_lit(m[0, 0])}, {c_lit(m[0, 1])}, {c_lit(m[1, 0])}, {c_lit(m[1, 1])})"
-    return f"G.ctrl({nats(cs)}, {q}n, {gate})", False, [(cs, q, m)]
+    return f"G.ctrl({nats(cs)}, {q}n, {gate})", False, [(cs, [q], m)]
 
 
-def random_circuit(rng, n, gates):
-    """Bend segments for List.concat, and the flat gate list for numpy."""
+def random_circuit(rng, n, gates, gen=random_gate):
+    """Bend segments for List.concat, and the flat gate list for the reference."""
     segments, run, flat = [], [], []
     for _ in range(gates):
-        text, is_list, ops = random_gate(rng, n)
+        text, is_list, ops = gen(rng, n)
         flat += ops
         if is_list:
             if run:
@@ -130,11 +261,15 @@ def random_circuit(rng, n, gates):
     return segments, flat
 
 
-def emit(n, segments):
+F32_HEADER = "import Base\nimport ./amp.bend as A\nimport ./sim.bend as S\nimport ./circuits.bend as G\nimport ./rotations.bend as R\n\n"
+EXACT_HEADER = "import Base\nimport ./exact.bend as A\nimport ./sim_x.bend as S\nimport ./circuits_x.bend as G\n\n"
+
+
+def emit(n, segments, header=F32_HEADER):
     ops = ", ".join(segments)
     return (
-        "import Base\nimport ./amp.bend as A\nimport ./sim.bend as S\nimport ./circuits.bend as G\n\n"
-        "def main() -> IO(Unit):\n"
+        header
+        + "def main() -> IO(Unit):\n"
         f"  IO.print(S.show({n}n, S.run({n}n, List.concat(&2, S.Op, [{ops}]), S.ket0({n}n))))\n"
     )
 
@@ -150,6 +285,19 @@ def apply(psi, n, cs, t, m):
         a, b = psi[i], psi[j]
         out[i] = m[0, 0] * a + m[0, 1] * b
         out[j] = m[1, 0] * a + m[1, 1] * b
+    return out
+
+
+def apply2q(psi, n, cs, t1, t2, m):
+    """The 4x4 m on the basis |t1 t2> in the order 00 01 10 11, with controls cs."""
+    out = psi.copy()
+    bit = lambda i, q: (i >> (n - 1 - q)) & 1
+    b1, b2 = 1 << (n - 1 - t1), 1 << (n - 1 - t2)
+    for i in range(1 << n):
+        if bit(i, t1) or bit(i, t2) or not all(bit(i, c) for c in cs):
+            continue
+        idx = [i, i | b2, i | b1, i | b1 | b2]
+        out[idx] = m @ psi[idx]
     return out
 
 
@@ -183,7 +331,10 @@ def main():
     ap.add_argument("--tol", type=float, default=1e-5)
     ap.add_argument("--native", action="store_true", help="also build and run the native binary")
     ap.add_argument("--keep", action="store_true", help="leave diff_tmp.bend in place")
+    ap.add_argument("--exact", action="store_true", help="Clifford+T circuits on the exact build, compared exactly")
     args = ap.parse_args()
+    if args.exact:
+        return main_exact(args)
     n, ok, worst = args.qubits, True, 0.0
     exe = HERE / "diff_tmp"
     for k in range(args.circuits):
@@ -193,8 +344,8 @@ def main():
         TMP.write_text(emit(n, segments))
         psi = np.zeros(1 << n, complex)
         psi[0] = 1
-        for cs, t, m in flat:
-            psi = apply(psi, n, cs, t, m)
+        for cs, ts, m in flat:
+            psi = apply(psi, n, cs, ts[0], m) if len(ts) == 1 else apply2q(psi, n, cs, ts[0], ts[1], m)
         js = parse(run_cmd(["bend", str(TMP)]))
         err = float(np.max(np.abs(js - psi)))
         line = f"seed {seed:3d}: {len(flat):3d} ops, |bend - numpy| max {err:.1e}, norm {np.sum(np.abs(js) ** 2):.7f}"
@@ -211,6 +362,36 @@ def main():
     if not args.keep:
         TMP.unlink(missing_ok=True)
     print(f"{'PASS' if ok else 'FAIL'}: {args.circuits} circuits of {args.gates} gates on {n} qubits, worst {worst:.1e} against {args.tol:.0e}")
+    sys.exit(0 if ok else 1)
+
+
+def main_exact(args):
+    gen_exact_build()
+    n, ok = args.qubits, True
+    exe = HERE / "diff_tmp"
+    for k in range(args.circuits):
+        seed = args.seed + k
+        rng = np.random.default_rng(seed)
+        segments, flat = random_circuit(rng, n, args.gates, random_exact_gate)
+        TMP.write_text(emit(n, segments, EXACT_HEADER))
+        psi = [(0, 0, 0, 0, 0)] * (1 << n)
+        psi[0] = (1, 0, 0, 0, 0)
+        for cs, t, name in flat:
+            psi = apply_exact(psi, n, cs, t, name)
+        got = parse_exact(run_cmd(["bend", str(TMP)]))
+        same = got == psi
+        line = f"seed {seed:3d}: {len(flat):3d} ops, {'identical' if same else 'MISMATCH'}, max denominator exponent {max(z[4] for z in psi)}"
+        if args.native:
+            run_cmd(["bend", str(TMP), "-o", str(exe)])
+            nat = parse_exact(run_cmd([str(exe)]))
+            exe.unlink()
+            line += f", native {'identical' if nat == psi else 'MISMATCH'}"
+            same = same and nat == psi
+        print(line)
+        ok &= same
+    if not args.keep:
+        TMP.unlink(missing_ok=True)
+    print(f"{'PASS' if ok else 'FAIL'}: {args.circuits} exact circuits of {args.gates} gates on {n} qubits")
     sys.exit(0 if ok else 1)
 
 

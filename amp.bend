@@ -35,11 +35,26 @@ def C.scale(+s: F32, x: C) -> C:
     case C{a, b}:
       C{F32.mul(s, a), F32.mul(s, b)}
 
+# the canonical form of an amplitude: every F32 pair already is one (the
+# exact module reduces here)
+def C.canon(x: C) -> C:
+  x
+
 # |x|^2
 def C.norm2(x: C) -> F32:
   match x:
     case C{+a, +b}:
       F32.add(F32.mul(a, a), F32.mul(b, b))
+
+# the amplitude rounded to three decimals, for pinned lines that must not
+# depend on the last bit of a transcendental
+def F32.round3(v: F32) -> F32:
+  F32.div(F32.round(F32.mul(v, 1000.0)), 1000.0)
+
+def C.round(x: C) -> C:
+  match x:
+    case C{a, b}:
+      C{F32.round3(a), F32.round3(b)}
 
 # printed as re+imi or re-imi, for example 0.70710677+0i; adding 0.0 turns a
 # negative zero into a positive one, so a zero never prints with a sign
