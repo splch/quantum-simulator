@@ -3,3 +3,4 @@ sim
 .DS_Store
 diff_tmp.bend
 diff_tmp
+bench_gen_*
