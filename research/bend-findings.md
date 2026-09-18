@@ -348,3 +348,24 @@ def main() -> IO(Unit):
 - A negative float literal (`-0.7`) was not tried.
 - No CUDA hardware; Metal only. The GPU lane's 4.8 s at n=20 includes no compile (second run identical).
 - The shell mishaps in this session (zsh not splitting `$BEND` and `$lane`) produced two spurious "failures" that were retracted after rerunning; no Bend failure is recorded from them.
+
+## Findings from phases 1 and 2 (2026-09-17, the same Bend 2.0.5 clone, via the `~/bin/bend` wrapper)
+
+All [V] with the verbatim message, on the JS lane unless noted.
+
+| construct | result |
+|---|---|
+| `(+x, y) = r` on a pair parameter, and `match r: case Tuple{+x, y}:` | both check; the field is reusable (Base does `(a, +n) = an`) |
+| a `+xs` list matched with `case _:` then used again as `xs` | checks; a `+` scrutinee survives its match |
+| `case Op{t, cs, g} <> rest:`, `case _ <> t:`, `case Bin{bits, count} <> Nil{}:` | nested cons patterns check (Base and the demos use them) |
+| `match c:` on a variable bound by an enclosing cons pattern | checks; Base nests `match m:` under `case 1n+np:` the same way |
+| `(a, b, c) = r` and `(a, b, c)` for `A & B & C` | check |
+| `List.for_each(~&2, ~U32, ~pr, xs)` with a top-level `pr`, and `"a\nb"` | check; `\n` is a newline in a string |
+| a negative float literal `-0.5` | `expected : a name / observed : '0'`; keep `F32.neg` |
+| a def named `count` while a pattern binds a field `count` | `expected : a pattern (a binder or a constructor) / observed : sim.count`. A pattern name that matches a top-level def is read as that def, so binders must not share a name with any def in the file |
+| `Nat.show(65536n)`, and `10000n` | `Error: the machine stack overflowed (a deep recursion, or a literal too large to expand)` at check time, in 0.06 s, on both lanes (the native build checks first). `4096n` is fine. `U32.to_nat(65536)` prints 65536. Nat literals are expanded in unary: build large counts from a U32 at run time |
+| a 65536-deep non-tail recursion (`1 <> mk(j)`) with the depth from `U32.to_nat` | `bend: memory fault (machine stack overflow?)` on the JS lane after 0.17 s. Any walk over a shot-length list must be a tail call; `unifs`, `lows`, `highs` and `tally` in sim.bend are accumulator loops for this reason |
+| an affine tree dropped without being matched (native, 64 rounds of a 2^20-leaf tree, half discarded each round) | max RSS 18.5 MB, identical to consuming both halves, so dropped values are freed; `project` splices in `zeros(p)` and `shots` prunes empty subtrees without a leak |
+| JS lane against the native binary on every line main.bend prints, histograms included | byte-identical (17 lines) |
+
+Statistical checks of the sampler, not pinned: 65536 shots of `RY(0.7)|0> (x) Bell(1, 2)` from seed 987654321 gave 28945, 28880, 3850, 3861 against expectations of 28914 (sigma 127) and 3854 (sigma 60), so the uniform rescaling at a generic threshold (cos^2 0.35 = 0.882) is unbiased to within a third of a sigma.

@@ -160,3 +160,246 @@ def near(n: Nat, +eps2: F32, a: Q(n), b: Q(n)) -> Bool:
       (b0, b1) = b
       x y = near(p, eps2, a0, b0) near(p, eps2, a1, b1)
       Bool.and(x, y)
+
+# Measurement
+# -----------
+
+# |q|^2, consuming the state; the parallel fold is pairwise summation
+def norm2(n: Nat, q: Q(n)) -> F32:
+  match n:
+    case 0n:
+      A.C.norm2(q)
+    case 1n++p:
+      (l, r) = q
+      a b = norm2(p, l) norm2(p, r)
+      F32.add(a, b)
+
+# The state is linear, so a reduction that must keep it hands it back beside
+# the value. weigh is |q|^2 beside the rebuilt state.
+def weigh.join(-p: Nat, a: F32 & Q(p), b: F32 & Q(p)) -> F32 & Q(1n+p):
+  (x, l) = a
+  (y, r) = b
+  (F32.add(x, y), (l, r))
+
+def weigh(n: Nat, q: Q(n)) -> F32 & Q(n):
+  match n:
+    case 0n:
+      +x = {q : A.C}
+      (A.C.norm2(x), x)
+    case 1n++p:
+      (l, r) = q
+      a b = weigh(p, l) weigh(p, r)
+      weigh.join(p, a, b)
+
+# the probability that qubit k reads 1, beside the state
+def prob1.at(-p: Nat, l: Q(p), b: F32 & Q(p)) -> F32 & Q(1n+p):
+  (y, r) = b
+  (y, (l, r))
+
+def prob1(n: Nat, k: Nat, q: Q(n)) -> F32 & Q(n):
+  match n k:
+    case 0n _:
+      (0.0, q)
+    case 1n++p 0n:
+      (l, r) = q
+      prob1.at(p, l, weigh(p, r))
+    case 1n++p 1n++j:
+      (l, r) = q
+      a b = prob1(p, j, l) prob1(p, j, r)
+      weigh.join(p, a, b)
+
+# The collapse of qubit k onto the outcome b: the branch for the other outcome
+# becomes zeros at depth k. Nothing is renormalized here, so laws about the
+# shape of the result stay float-free.
+def project.at(p: Nat, b: Bool, l: Q(p), r: Q(p)) -> Q(1n+p):
+  match b:
+    case False{}:
+      (l, zeros(p))
+    case True{}:
+      (zeros(p), r)
+
+def project(n: Nat, k: Nat, +b: Bool, q: Q(n)) -> Q(n):
+  match n k:
+    case 0n _:
+      q
+    case 1n++p 0n:
+      (l, r) = q
+      project.at(p, b, l, r)
+    case 1n++p 1n++j:
+      (l, r) = q
+      x y = project(p, j, b, l) project(p, j, b, r)
+      (x, y)
+
+# every amplitude multiplied by s
+def rescale(n: Nat, +s: F32, q: Q(n)) -> Q(n):
+  match n:
+    case 0n:
+      A.C.scale(s, q)
+    case 1n++p:
+      (l, r) = q
+      a b = rescale(p, s, l) rescale(p, s, r)
+      (a, b)
+
+# the probability of the outcome b when qubit k reads 1 with probability p1
+def prob_of(b: Bool, +p1: F32) -> F32:
+  match b:
+    case False{}:
+      F32.sub(1.0, p1)
+    case True{}:
+      p1
+
+# Measure qubit k, driven by the uniform u: the outcome is 1 when u < p1. The
+# survivor is renormalized by 1/sqrt(its probability), here and nowhere else.
+def measure.fin(+n: Nat, k: Nat, u: F32, r: F32 & Q(n)) -> Bool & Q(n):
+  (+p1, q) = r
+  +b = F32.is_lt(u, p1)
+  (b, rescale(n, F32.div(1.0, F32.sqrt(prob_of(b, p1))), project(n, k, b, q)))
+
+def measure(+n: Nat, +k: Nat, u: F32, q: Q(n)) -> Bool & Q(n):
+  measure.fin(n, k, u, prob1(n, k, q))
+
+# <Z_k> = 1 - 2 p1, beside the state
+def expect_z.fin(-n: Nat, r: F32 & Q(n)) -> F32 & Q(n):
+  (p1, q) = r
+  (F32.sub(1.0, F32.mul(2.0, p1)), q)
+
+def expect_z(+n: Nat, k: Nat, q: Q(n)) -> F32 & Q(n):
+  expect_z.fin(n, prob1(n, k, q))
+
+# Sampling
+# --------
+
+# xorshift32, the step of the PRNG; a seed of 0 would stay 0
+def xs32(+x: U32) -> U32:
+  +a = (x .^. (x << 13n) : U32)
+  +b = (a .^. (a >> 17n) : U32)
+  (b .^. (b << 5n) : U32)
+
+# a uniform in [0, 1) from the top 24 bits of x; both steps are exact
+def unif(x: U32) -> F32:
+  F32.mul(U32.to_f32((x >> 8n : U32)), 5.9604645e-8)
+
+# the default seed, fixed so that histograms are reproducible
+def seed() -> U32:
+  2463534242
+
+# k uniforms from the seed s. Every walk over the shots is a tail call, so the
+# JS backend, which uses the machine stack, takes any shot count.
+def unifs.go(k: Nat, s: U32, acc: List<&2, F32>) -> List<&2, F32>:
+  match k:
+    case 0n:
+      acc
+    case 1n+j:
+      +x = xs32(s)
+      unifs.go(j, x, unif(x) <> acc)
+
+def unifs(k: Nat, s: U32) -> List<&2, F32>:
+  unifs.go(k, s, Nil{})
+
+# how many uniforms
+def tally(us: List<&2, F32>, acc: Nat) -> Nat:
+  match us:
+    case Nil{}:
+      acc
+    case u <> rest:
+      tally(rest, 1n+acc)
+
+# The probability tree for sampling: at each node the fraction of the
+# subtree's weight that lies in its |0> half, and nothing at the leaves.
+def W(n: Nat) -> Type:
+  match n:
+    case 0n:
+      Unit
+    case 1n++p:
+      F32 & (W(p) & W(p))
+
+# sums consumes the state and returns its total weight beside the tree
+def sums.join(-p: Nat, a: F32 & W(p), b: F32 & W(p)) -> F32 & W(1n+p):
+  (+x, l) = a
+  (y, r) = b
+  +t = F32.add(x, y)
+  (t, (F32.div(x, t), (l, r)))
+
+def sums(n: Nat, q: Q(n)) -> F32 & W(n):
+  match n:
+    case 0n:
+      (A.C.norm2(q), Unit{})
+    case 1n++p:
+      (l, r) = q
+      a b = sums(p, l) sums(p, r)
+      sums.join(p, a, b)
+
+# a histogram bin: a bitstring and how many shots landed on it
+type Bin is Data:
+  Bin{bits: String, count: Nat}
+
+# the uniforms below c, rescaled to [0, 1)
+def lows.put(c: F32, u: F32, hit: Bool, acc: List<&2, F32>) -> List<&2, F32>:
+  match hit:
+    case False{}:
+      acc
+    case True{}:
+      F32.div(u, c) <> acc
+
+def lows.go(+c: F32, +us: List<&2, F32>, acc: List<&2, F32>) -> List<&2, F32>:
+  match us:
+    case Nil{}:
+      acc
+    case u <> rest:
+      lows.go(c, rest, lows.put(c, u, F32.is_lt(u, c), acc))
+
+def lows(+c: F32, us: List<&2, F32>) -> List<&2, F32>:
+  lows.go(c, us, Nil{})
+
+# the uniforms at or above c, rescaled to [0, 1)
+def highs.put(+c: F32, u: F32, hit: Bool, acc: List<&2, F32>) -> List<&2, F32>:
+  match hit:
+    case False{}:
+      F32.div(F32.sub(u, c), F32.sub(1.0, c)) <> acc
+    case True{}:
+      acc
+
+def highs.go(+c: F32, +us: List<&2, F32>, acc: List<&2, F32>) -> List<&2, F32>:
+  match us:
+    case Nil{}:
+      acc
+    case u <> rest:
+      highs.go(c, rest, highs.put(c, u, F32.is_lt(u, c), acc))
+
+def highs(+c: F32, us: List<&2, F32>) -> List<&2, F32>:
+  highs.go(c, us, Nil{})
+
+# Route the uniforms down the probability tree: at each node those below the
+# node's fraction go left and the rest right, each side rescaled to [0, 1),
+# and a node whose list is empty is pruned. Every populated leaf yields one
+# Bin, and the bins come back in bitstring order.
+def shots(n: Nat, +bits: String, +us: List<&2, F32>, w: W(n)) -> List<&2, Bin>:
+  match n us:
+    case _ Nil{}:
+      Nil{}
+    case 0n _:
+      [Bin{bits, tally(us, 0n)}]
+    case 1n++p _:
+      (+c, lr) = w
+      (l, r) = lr
+      a b = shots(p, bits ++ "0", lows(c, us), l) shots(p, bits ++ "1", highs(c, us), r)
+      List.append(&2, Bin, a, b)
+
+# k shots of q from the seed s, as a histogram in bitstring order. The count
+# is a U32 because a Nat literal past a few thousand overflows the checker.
+def sample.fin(n: Nat, us: List<&2, F32>, r: F32 & W(n)) -> List<&2, Bin>:
+  (t, w) = r
+  shots(n, "", us, w)
+
+def sample(+n: Nat, k: U32, s: U32, q: Q(n)) -> List<&2, Bin>:
+  sample.fin(n, unifs(U32.to_nat(k), s), sums(n, q))
+
+# one "bitstring count" line per bin
+def show_hist(bins: List<&2, Bin>) -> String:
+  match bins:
+    case Nil{}:
+      ""
+    case Bin{bits, count} <> Nil{}:
+      bits ++ " " ++ Nat.show(count)
+    case Bin{bits, count} <> rest:
+      bits ++ " " ++ Nat.show(count) ++ "\n" ++ show_hist(rest)
